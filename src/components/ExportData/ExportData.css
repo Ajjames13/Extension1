@@ -1,0 +1,42 @@
+.export-data {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.export-data header h3 {
+  margin: 0 0 4px;
+}
+
+.export-data header p {
+  margin: 0;
+  color: #4b5563;
+}
+
+.export-data__actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.export-data__actions button {
+  border: none;
+  background: #2563eb;
+  color: #ffffff;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.export-data__actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.export-data__status {
+  margin: 0;
+  color: #4b5563;
+}

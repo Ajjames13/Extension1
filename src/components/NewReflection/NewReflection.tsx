@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { ChecklistSnapshot, ChecklistSnapshotItem } from "../ChecklistSnapshot/ChecklistSnapshot";
+import { getChecklistTemplate } from "../../storage/checklistStore";
 import { createReflection } from "../../storage/reflectionStore";
 import "./NewReflection.css";
 
@@ -19,6 +21,7 @@ type DraftState = {
   tags: string;
   questions: Record<string, string>;
   images: Array<{ name: string; dataUrl: string }>;
+  checklist: ChecklistSnapshotItem[];
 };
 
 const questionTemplate: QuestionTemplate[] = [
@@ -52,6 +55,8 @@ const emptyDraft: DraftState = {
     acc[item.id] = "";
     return acc;
   }, {}),
+  images: [],
+  checklist: []
   images: []
 };
 
@@ -68,6 +73,8 @@ const buildBody = (draft: DraftState) => {
       outcome: draft.outcome,
       confidence: draft.confidence,
       tags: draft.tags,
+      questions: draft.questions,
+      checklist: draft.checklist
       questions: draft.questions
     },
     null,
@@ -94,6 +101,36 @@ export const NewReflection = () => {
   useEffect(() => {
     cachedDraft = draft;
   }, [draft]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadChecklist = async () => {
+      const template = await getChecklistTemplate();
+      if (!isMounted) {
+        return;
+      }
+      setDraft((prev) => {
+        if (prev.checklist.length > 0) {
+          return prev;
+        }
+        return {
+          ...prev,
+          checklist: template.map((item) => ({
+            id: item.id,
+            text: item.text,
+            checked: false
+          }))
+        };
+      });
+    };
+
+    loadChecklist();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleFieldChange = (field: keyof DraftState) => {
     return (
@@ -158,6 +195,15 @@ export const NewReflection = () => {
       });
   };
 
+  const handleChecklistToggle = (id: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      checklist: prev.checklist.map((item) =>
+        item.id === id ? { ...item, checked: !item.checked } : item
+      )
+    }));
+  };
+
   const handleRemoveImage = (name: string) => {
     setDraft((prev) => ({
       ...prev,
@@ -189,6 +235,13 @@ export const NewReflection = () => {
         }))
       });
 
+      setDraft((prev) => ({
+        ...emptyDraft,
+        checklist: prev.checklist.map((item) => ({
+          ...item,
+          checked: false
+        }))
+      }));
       setDraft(emptyDraft);
       setStatusMessage("Reflection saved.");
     } catch (error) {
@@ -308,6 +361,13 @@ export const NewReflection = () => {
             </label>
           ))}
         </div>
+      </section>
+
+      <section className="new-reflection__section">
+        <ChecklistSnapshot
+          items={draft.checklist}
+          onToggle={handleChecklistToggle}
+        />
       </section>
 
       <section className="new-reflection__section">
