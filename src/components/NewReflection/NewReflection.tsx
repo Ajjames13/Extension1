@@ -233,7 +233,13 @@ export const NewReflection = () => {
         }))
       });
 
-      setDraft(emptyDraft);
+      setDraft((prev) => ({
+        ...emptyDraft,
+        checklist: prev.checklist.map((item) => ({
+          ...item,
+          checked: false
+        }))
+      }));
       setStatusMessage("Reflection saved.");
     } catch (error) {
       setStatusMessage("Unable to save reflection.");
