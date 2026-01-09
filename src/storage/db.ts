@@ -35,11 +35,6 @@ class ExtensionDatabase extends Dexie {
       images: "++id, reflectionId, createdAt",
       settings: "key, updatedAt"
     });
-    this.version(2).stores({
-      reflections: "++id, createdAt, updatedAt, title, *tags",
-      images: "++id, reflectionId, createdAt",
-      settings: "key, updatedAt"
-    });
   }
 }
 

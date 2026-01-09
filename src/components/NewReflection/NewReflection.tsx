@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChecklistSnapshot,
   ChecklistSnapshotItem
@@ -10,6 +10,17 @@ import {
 } from "../../storage/reflectionQuestionsStore";
 import { createReflection } from "../../storage/reflectionStore";
 import "./NewReflection.css";
+
+import { ChecklistSnapshot, ChecklistSnapshotItem } from "../ChecklistSnapshot/ChecklistSnapshot";
+import { getChecklistTemplate } from "../../storage/checklistStore";
+import { createReflection } from "../../storage/reflectionStore";
+import "./NewReflection.css";
+
+type QuestionTemplate = {
+  id: string;
+  label: string;
+  placeholder: string;
+};
 
 type DraftState = {
   instrument: string;
@@ -31,8 +42,23 @@ const buildQuestionDefaults = (questions: ReflectionQuestion[]) => {
     return acc;
   }, {});
 };
-
-const DRAFT_STORAGE_KEY = "reflection_draft";
+const questionTemplate: QuestionTemplate[] = [
+  {
+    id: "thesis",
+    label: "What is your core thesis for this trade?",
+    placeholder: "Summarize the idea behind the setup."
+  },
+  {
+    id: "risk",
+    label: "What is the primary risk you are watching?",
+    placeholder: "Note invalidation or stop context."
+  },
+  {
+    id: "improvement",
+    label: "What would you improve next time?",
+    placeholder: "Capture a key learning from this reflection."
+  }
+];
 
 const emptyDraft: DraftState = {
   instrument: "",
@@ -46,30 +72,16 @@ const emptyDraft: DraftState = {
   questions: {},
   images: [],
   checklist: []
+  questions: questionTemplate.reduce<Record<string, string>>((acc, item) => {
+    acc[item.id] = "";
+    return acc;
+  }, {}),
+  images: [],
+  checklist: []
+  images: []
 };
 
-const loadDraft = (): DraftState | null => {
-  const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
-  if (!raw) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(raw) as Partial<DraftState>;
-    return {
-      ...emptyDraft,
-      ...parsed,
-      questions: parsed.questions ?? {},
-      images: parsed.images ?? [],
-      checklist: parsed.checklist ?? []
-    };
-  } catch {
-    return null;
-  }
-};
-
-const saveDraft = (draft: DraftState) => {
-  localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
-};
+let cachedDraft: DraftState | null = null;
 
 const buildBody = (draft: DraftState) => {
   return JSON.stringify(
@@ -84,6 +96,7 @@ const buildBody = (draft: DraftState) => {
       tags: draft.tags,
       questions: draft.questions,
       checklist: draft.checklist
+      questions: draft.questions
     },
     null,
     2
@@ -91,14 +104,12 @@ const buildBody = (draft: DraftState) => {
 };
 
 export const NewReflection = () => {
-  const [draft, setDraft] = useState<DraftState>(() => loadDraft() ?? emptyDraft);
+  const [draft, setDraft] = useState<DraftState>(() => cachedDraft ?? emptyDraft);
   const [questionTemplate, setQuestionTemplate] = useState<
     ReflectionQuestion[]
   >([]);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const isMountedRef = useRef(true);
-  const draftSaveTimeout = useRef<number | null>(null);
 
   const requiredFieldsFilled = useMemo(() => {
     return (
@@ -112,53 +123,30 @@ export const NewReflection = () => {
   }, [draft]);
 
   useEffect(() => {
-    if (draftSaveTimeout.current) {
-      window.clearTimeout(draftSaveTimeout.current);
-    }
-    draftSaveTimeout.current = window.setTimeout(() => {
-      saveDraft(draft);
-    }, 300);
-
-    return () => {
-      if (draftSaveTimeout.current) {
-        window.clearTimeout(draftSaveTimeout.current);
-      }
-    };
+    cachedDraft = draft;
   }, [draft]);
-
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadChecklist = async () => {
-      try {
-        const template = await getChecklistTemplate();
-        if (!isMounted) {
-          return;
-        }
-        setDraft((prev) => {
-          if (prev.checklist.length > 0) {
-            return prev;
-          }
-          return {
-            ...prev,
-            checklist: template.map((item) => ({
-              id: item.id,
-              text: item.text,
-              checked: false
-            }))
-          };
-        });
-      } catch {
-        if (isMounted) {
-          setStatusMessage("Unable to load checklist template.");
-        }
+      const template = await getChecklistTemplate();
+      if (!isMounted) {
+        return;
       }
+      setDraft((prev) => {
+        if (prev.checklist.length > 0) {
+          return prev;
+        }
+        return {
+          ...prev,
+          checklist: template.map((item) => ({
+            id: item.id,
+            text: item.text,
+            checked: false
+          }))
+        };
+      });
     };
 
     loadChecklist();
@@ -172,27 +160,21 @@ export const NewReflection = () => {
     let isMounted = true;
 
     const loadQuestions = async () => {
-      try {
-        const template = await getReflectionQuestions();
-        if (!isMounted) {
-          return;
-        }
-        setQuestionTemplate(template);
-        setDraft((prev) => {
-          const defaults = buildQuestionDefaults(template);
-          return {
-            ...prev,
-            questions: {
-              ...defaults,
-              ...prev.questions
-            }
-          };
-        });
-      } catch {
-        if (isMounted) {
-          setStatusMessage("Unable to load reflection questions.");
-        }
+      const template = await getReflectionQuestions();
+      if (!isMounted) {
+        return;
       }
+      setQuestionTemplate(template);
+      setDraft((prev) => {
+        const defaults = buildQuestionDefaults(template);
+        return {
+          ...prev,
+          questions: {
+            ...defaults,
+            ...prev.questions
+          }
+        };
+      });
     };
 
     loadQuestions();
@@ -252,18 +234,13 @@ export const NewReflection = () => {
       )
     )
       .then((uploaded) => {
-        if (!isMountedRef.current) {
-          return;
-        }
         setDraft((prev) => ({
           ...prev,
           images: [...prev.images, ...uploaded]
         }));
       })
       .catch(() => {
-        if (isMountedRef.current) {
-          setStatusMessage("Unable to read one of the selected images.");
-        }
+        setStatusMessage("Unable to read one of the selected images.");
       })
       .finally(() => {
         event.target.value = "";
@@ -317,7 +294,7 @@ export const NewReflection = () => {
           checked: false
         }))
       }));
-      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      setDraft(emptyDraft);
       setStatusMessage("Reflection saved.");
     } catch (error) {
       setStatusMessage("Unable to save reflection.");
