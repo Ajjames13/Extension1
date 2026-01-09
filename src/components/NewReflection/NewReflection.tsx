@@ -11,11 +11,6 @@ import {
 import { createReflection } from "../../storage/reflectionStore";
 import "./NewReflection.css";
 
-import { ChecklistSnapshot, ChecklistSnapshotItem } from "../ChecklistSnapshot/ChecklistSnapshot";
-import { getChecklistTemplate } from "../../storage/checklistStore";
-import { createReflection } from "../../storage/reflectionStore";
-import "./NewReflection.css";
-
 type QuestionTemplate = {
   id: string;
   label: string;
@@ -42,6 +37,7 @@ const buildQuestionDefaults = (questions: ReflectionQuestion[]) => {
     return acc;
   }, {});
 };
+
 const questionTemplate: QuestionTemplate[] = [
   {
     id: "thesis",
@@ -69,16 +65,12 @@ const emptyDraft: DraftState = {
   outcome: "",
   confidence: "",
   tags: "",
-  questions: {},
-  images: [],
-  checklist: []
   questions: questionTemplate.reduce<Record<string, string>>((acc, item) => {
     acc[item.id] = "";
     return acc;
   }, {}),
   images: [],
   checklist: []
-  images: []
 };
 
 let cachedDraft: DraftState | null = null;
@@ -96,7 +88,6 @@ const buildBody = (draft: DraftState) => {
       tags: draft.tags,
       questions: draft.questions,
       checklist: draft.checklist
-      questions: draft.questions
     },
     null,
     2
@@ -104,7 +95,9 @@ const buildBody = (draft: DraftState) => {
 };
 
 export const NewReflection = () => {
-  const [draft, setDraft] = useState<DraftState>(() => cachedDraft ?? emptyDraft);
+  const [draft, setDraft] = useState<DraftState>(
+    () => cachedDraft ?? emptyDraft
+  );
   const [questionTemplate, setQuestionTemplate] = useState<
     ReflectionQuestion[]
   >([]);
