@@ -11,6 +11,17 @@ import {
 import { createReflection } from "../../storage/reflectionStore";
 import "./NewReflection.css";
 
+import { ChecklistSnapshot, ChecklistSnapshotItem } from "../ChecklistSnapshot/ChecklistSnapshot";
+import { getChecklistTemplate } from "../../storage/checklistStore";
+import { createReflection } from "../../storage/reflectionStore";
+import "./NewReflection.css";
+
+type QuestionTemplate = {
+  id: string;
+  label: string;
+  placeholder: string;
+};
+
 type DraftState = {
   instrument: string;
   timeframe: string;
@@ -31,6 +42,23 @@ const buildQuestionDefaults = (questions: ReflectionQuestion[]) => {
     return acc;
   }, {});
 };
+const questionTemplate: QuestionTemplate[] = [
+  {
+    id: "thesis",
+    label: "What is your core thesis for this trade?",
+    placeholder: "Summarize the idea behind the setup."
+  },
+  {
+    id: "risk",
+    label: "What is the primary risk you are watching?",
+    placeholder: "Note invalidation or stop context."
+  },
+  {
+    id: "improvement",
+    label: "What would you improve next time?",
+    placeholder: "Capture a key learning from this reflection."
+  }
+];
 
 const emptyDraft: DraftState = {
   instrument: "",
@@ -44,6 +72,13 @@ const emptyDraft: DraftState = {
   questions: {},
   images: [],
   checklist: []
+  questions: questionTemplate.reduce<Record<string, string>>((acc, item) => {
+    acc[item.id] = "";
+    return acc;
+  }, {}),
+  images: [],
+  checklist: []
+  images: []
 };
 
 let cachedDraft: DraftState | null = null;
@@ -61,6 +96,7 @@ const buildBody = (draft: DraftState) => {
       tags: draft.tags,
       questions: draft.questions,
       checklist: draft.checklist
+      questions: draft.questions
     },
     null,
     2
@@ -258,6 +294,7 @@ export const NewReflection = () => {
           checked: false
         }))
       }));
+      setDraft(emptyDraft);
       setStatusMessage("Reflection saved.");
     } catch (error) {
       setStatusMessage("Unable to save reflection.");
