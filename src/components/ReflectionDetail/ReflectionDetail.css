@@ -1,0 +1,128 @@
+.reflection-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.reflection-detail__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.reflection-detail__header h2 {
+  margin: 0 0 4px;
+}
+
+.reflection-detail__header p {
+  margin: 0;
+  color: #6b7280;
+}
+
+.reflection-detail__actions {
+  display: flex;
+  gap: 12px;
+}
+
+.reflection-detail__actions button {
+  border: none;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.reflection-detail__actions button:last-child {
+  background: #ef4444;
+}
+
+.reflection-detail__status {
+  margin: 0;
+  color: #b91c1c;
+}
+
+.reflection-detail__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.reflection-detail label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.reflection-detail input,
+.reflection-detail select,
+.reflection-detail textarea {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
+}
+
+.reflection-detail__notes textarea,
+.reflection-detail__questions textarea {
+  resize: vertical;
+}
+
+.reflection-detail__questions {
+  display: grid;
+  gap: 12px;
+}
+
+.reflection-detail__gallery {
+  display: grid;
+  gap: 12px;
+}
+
+.reflection-detail__images {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.reflection-detail__images figure {
+  margin: 0;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  display: grid;
+  gap: 8px;
+}
+
+.reflection-detail__images img {
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+
+.reflection-detail__footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.reflection-detail__footer button {
+  border: none;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.reflection-detail__footer button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
