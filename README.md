@@ -1,4 +1,5 @@
 # Extension1
+
 Chrome Extension (Manifest V3) scaffold built with React, TypeScript, and Vite.
 
 ## Folder structure
