@@ -1,399 +1,147 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  deleteReflection,
-  getReflection,
-  updateReflection
-} from "../../storage/reflectionStore";
-import type { Image, Reflection } from "../../storage/db";
+import { useEffect, useState } from "react";
+import { getReflection, ReflectionWithImages } from "../../storage/reflectionStore";
 import "./ReflectionDetail.css";
 
-type ReflectionPayload = {
-  instrument: string;
-  timeframe: string;
-  direction: string;
-  prices: string;
-  setupName: string;
-  outcome: string;
-  confidence: string;
-  tags: string[];
-  notes: string;
-  questions: Record<string, string>;
+type Props = {
+  id: number;
+  onClose: () => void;
 };
 
-const defaultPayload: ReflectionPayload = {
-  instrument: "",
-  timeframe: "",
-  direction: "",
-  prices: "",
-  setupName: "",
-  outcome: "",
-  confidence: "",
-  tags: [],
-  notes: "",
-  questions: {}
-};
-
-const normalizeTags = (tags: ReflectionPayload["tags"] | string): string[] => {
-  if (Array.isArray(tags)) {
-    return tags;
-  }
-
-  if (typeof tags === "string") {
-    return tags
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter(Boolean);
-  }
-
-  return [];
-};
-
-const parseBody = (body: string): ReflectionPayload => {
+// Helper to parse the body safely
+const parseBody = (body: string) => {
   try {
-    const parsed = JSON.parse(body) as Partial<ReflectionPayload>;
-    return {
-      instrument: parsed.instrument ?? "",
-      timeframe: parsed.timeframe ?? "",
-      direction: parsed.direction ?? "",
-      prices: parsed.prices ?? "",
-      setupName: parsed.setupName ?? "",
-      outcome: parsed.outcome ?? "",
-      confidence: parsed.confidence ?? "",
-      tags: parsed.tags ? normalizeTags(parsed.tags) : [],
-      notes: parsed.notes ?? "",
-      questions: parsed.questions ?? {}
-    };
+    const data = JSON.parse(body);
+    // If it's the new structured format, it returns an object.
+    // If it's old legacy text, JSON.parse might fail or return a string/number.
+    if (typeof data === "object" && data !== null) return data;
+    return { notes: body }; // Fallback for legacy text
   } catch {
-    return { ...defaultPayload };
+    return { notes: body }; // Fallback for plain text
   }
 };
 
-const serializeBody = (payload: ReflectionPayload) =>
-  JSON.stringify(
-    {
-      instrument: payload.instrument,
-      timeframe: payload.timeframe,
-      direction: payload.direction,
-      prices: payload.prices,
-      setupName: payload.setupName,
-      outcome: payload.outcome,
-      confidence: payload.confidence,
-      tags: payload.tags,
-      notes: payload.notes,
-      questions: payload.questions
-    },
-    null,
-    2
-  );
-
-export type ReflectionDetailProps = {
-  reflectionId: number;
-};
-
-export const ReflectionDetail = ({ reflectionId }: ReflectionDetailProps) => {
-  const [reflection, setReflection] = useState<Reflection | null>(null);
-  const [images, setImages] = useState<Image[]>([]);
-  const [draft, setDraft] = useState<ReflectionPayload | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const loadReflection = useCallback(async () => {
-    setStatusMessage(null);
-    try {
-      const result = await getReflection(reflectionId);
-      if (!result) {
-        setStatusMessage("Reflection not found.");
-        setReflection(null);
-        setImages([]);
-        setDraft(null);
-        return;
-      }
-
-      setReflection(result.reflection);
-      setImages(result.images);
-      const parsed = parseBody(result.reflection.body);
-      setDraft({
-        ...parsed,
-        tags: result.reflection.tags ?? parsed.tags
-      });
-    } catch {
-      setStatusMessage("Unable to load reflection.");
-    }
-  }, [reflectionId]);
+export const ReflectionDetail = ({ id, onClose }: Props) => {
+  const [data, setData] = useState<ReflectionWithImages | null>(null);
 
   useEffect(() => {
-    loadReflection();
-  }, [loadReflection]);
+    getReflection(id).then(setData);
+  }, [id]);
 
-  const questionEntries = useMemo(() => {
-    return Object.entries(draft?.questions ?? {});
-  }, [draft]);
+  if (!data) return <div className="rd-loading">Loading trade details...</div>;
 
-  const handleFieldChange = (field: keyof ReflectionPayload) => {
-    return (
-      event:
-        | React.ChangeEvent<HTMLInputElement>
-        | React.ChangeEvent<HTMLSelectElement>
-        | React.ChangeEvent<HTMLTextAreaElement>
-    ) => {
-      if (!draft) {
-        return;
-      }
-      setDraft({
-        ...draft,
-        [field]: event.target.value
-      });
-    };
-  };
+  const { reflection, images } = data;
+  const details = parseBody(reflection.body);
 
-  const handleTagChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!draft) {
-      return;
-    }
-    const value = event.target.value;
-    setDraft({
-      ...draft,
-      tags: value
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean)
-    });
-  };
-
-  const handleQuestionChange = (key: string) => {
-    return (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      if (!draft) {
-        return;
-      }
-      setDraft({
-        ...draft,
-        questions: {
-          ...draft.questions,
-          [key]: event.target.value
-        }
-      });
-    };
-  };
-
-  const handleSave = async () => {
-    if (!reflection || !draft) {
-      return;
-    }
-    setIsSaving(true);
-    setStatusMessage(null);
-    try {
-      const updated = await updateReflection(reflection.id as number, {
-        title: draft.setupName || reflection.title,
-        body: serializeBody(draft),
-        tags: draft.tags
-      });
-
-      if (updated) {
-        setReflection(updated);
-        setIsEditing(false);
-        setStatusMessage("Reflection updated.");
-      } else {
-        setStatusMessage("Unable to update reflection.");
-      }
-    } catch {
-      setStatusMessage("Unable to update reflection.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!reflection) {
-      return;
-    }
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this reflection?"
-    );
-    if (!confirmed) {
-      return;
-    }
-    setIsDeleting(true);
-    setStatusMessage(null);
-    try {
-      await deleteReflection(reflection.id as number);
-      setReflection(null);
-      setDraft(null);
-      setImages([]);
-      setStatusMessage("Reflection deleted.");
-    } catch {
-      setStatusMessage("Unable to delete reflection.");
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  if (!reflection || !draft) {
-    return (
-      <section className="reflection-detail">
-        <h2>Reflection Detail</h2>
-        <p>{statusMessage ?? "Loading reflection..."}</p>
-      </section>
-    );
-  }
+  // Determine styles based on outcome
+  const outcomeClass = details.outcome || "neutral"; // win, loss, break_even
 
   return (
-    <section className="reflection-detail">
-      <header className="reflection-detail__header">
-        <div>
-          <h2>{draft.setupName || reflection.title || "Reflection"}</h2>
-          <p>
-            {draft.instrument} · {draft.timeframe} · {draft.direction}
-          </p>
+    <div className="rd-container">
+      {/* HEADER */}
+      <header className={`rd-header ${outcomeClass}`}>
+        <div className="rd-header-top">
+          <span className="rd-id">#{reflection.id}</span>
+          <button className="rd-close-btn" onClick={onClose}>×</button>
         </div>
-        <div className="reflection-detail__actions">
-          <button type="button" onClick={() => setIsEditing((prev) => !prev)}>
-            {isEditing ? "Cancel edit" : "Edit"}
-          </button>
-          <button type="button" onClick={handleDelete} disabled={isDeleting}>
-            {isDeleting ? "Deleting..." : "Delete"}
-          </button>
+        <div className="rd-header-main">
+          <h1>{details.symbol || reflection.title}</h1>
+          <div className="rd-badges">
+            <span className="rd-badge direction">
+              {details.direction?.toUpperCase() || "—"}
+            </span>
+            <span className={`rd-badge outcome ${outcomeClass}`}>
+              {details.outcome?.replace("_", " ").toUpperCase() || "UNKNOWN"}
+            </span>
+          </div>
+        </div>
+        <div className="rd-header-meta">
+          <span>{new Date(reflection.createdAt).toLocaleString()}</span>
+          {details.setupName && <span> • {details.setupName}</span>}
         </div>
       </header>
 
-      {statusMessage ? (
-        <p className="reflection-detail__status">{statusMessage}</p>
-      ) : null}
+      {/* CONTENT GRID */}
+      <div className="rd-content">
+        
+        {/* ROW 1: Execution Data */}
+        <section className="rd-section">
+          <div className="rd-section-title">:: EXECUTION & RISK</div>
+          <div className="rd-stat-grid">
+            <div className="rd-stat">
+              <label>ENTRY</label>
+              <div className="font-mono">{details.entryPrice || "—"}</div>
+            </div>
+            <div className="rd-stat">
+              <label>TARGET</label>
+              <div className="font-mono">{details.targetPrice || "—"}</div>
+            </div>
+            <div className="rd-stat">
+              <label>STOP LOSS</label>
+              <div className="font-mono">{details.stopLossPrice || "—"}</div>
+            </div>
+            <div className="rd-stat">
+              <label>CONFIDENCE</label>
+              <div className="rd-confidence-pill">
+                {details.confidence ? `${details.confidence}/10` : "—"}
+              </div>
+            </div>
+          </div>
+          
+          {details.stopLossType && (
+            <div className="rd-extra-row">
+              <span className="rd-label-sm">RISK TYPE:</span>
+              <span className="rd-tag">{details.stopLossType.toUpperCase()}</span>
+            </div>
+          )}
+        </section>
 
-      <div className="reflection-detail__grid">
-        <label>
-          Setup name
-          <input
-            type="text"
-            value={draft.setupName}
-            onChange={handleFieldChange("setupName")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          Instrument
-          <input
-            type="text"
-            value={draft.instrument}
-            onChange={handleFieldChange("instrument")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          Timeframe
-          <input
-            type="text"
-            value={draft.timeframe}
-            onChange={handleFieldChange("timeframe")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          Direction
-          <select
-            value={draft.direction}
-            onChange={handleFieldChange("direction")}
-            disabled={!isEditing}
-          >
-            <option value="">Select</option>
-            <option value="long">Long</option>
-            <option value="short">Short</option>
-            <option value="neutral">Neutral</option>
-          </select>
-        </label>
-        <label>
-          Prices
-          <input
-            type="text"
-            value={draft.prices}
-            onChange={handleFieldChange("prices")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          Outcome
-          <input
-            type="text"
-            value={draft.outcome}
-            onChange={handleFieldChange("outcome")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          Confidence
-          <input
-            type="text"
-            value={draft.confidence}
-            onChange={handleFieldChange("confidence")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          Tags
-          <input
-            type="text"
-            value={draft.tags.join(", ")}
-            onChange={handleTagChange}
-            disabled={!isEditing}
-          />
-        </label>
-      </div>
+        {/* ROW 2: Notes & Thesis */}
+        <section className="rd-section">
+          <div className="rd-section-title">:: TRADER NOTES</div>
+          <div className="rd-notes">
+            {details.notes || details.questions?.thesis || "No notes recorded."}
+          </div>
+        </section>
 
-      <section className="reflection-detail__notes">
-        <label>
-          Notes
-          <textarea
-            value={draft.notes}
-            onChange={handleFieldChange("notes")}
-            rows={4}
-            disabled={!isEditing}
-          />
-        </label>
-      </section>
-
-      <section className="reflection-detail__questions">
-        <h3>Reflection answers</h3>
-        {questionEntries.length === 0 ? (
-          <p>No answers captured.</p>
-        ) : (
-          questionEntries.map(([key, value]) => (
-            <label key={key}>
-              {key}
-              <textarea
-                value={value}
-                onChange={handleQuestionChange(key)}
-                rows={3}
-                disabled={!isEditing}
-              />
-            </label>
-          ))
+        {/* ROW 3: Checklist (ReadOnly) */}
+        {details.checklist && details.checklist.length > 0 && (
+          <section className="rd-section">
+            <div className="rd-section-title">:: PRE-TRADE CHECKLIST STATE</div>
+            <div className="rd-checklist-read">
+              {details.checklist.map((item: any) => (
+                <div key={item.id} className="rd-check-item">
+                  <span className="rd-check-icon">{item.checked ? "☑" : "☐"}</span>
+                  <span>{item.text}</span>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
-      </section>
 
-      <section className="reflection-detail__gallery">
-        <h3>Images</h3>
-        {images.length === 0 ? (
-          <p>No images uploaded.</p>
-        ) : (
-          <div className="reflection-detail__images">
-            {images.map((image) => (
-              <figure key={image.id}>
-                <img src={image.dataUrl} alt={image.name} />
-                <figcaption>{image.name}</figcaption>
-              </figure>
+        {/* ROW 4: Images */}
+        {images.length > 0 && (
+          <section className="rd-section">
+            <div className="rd-section-title">:: CHART EVIDENCE</div>
+            <div className="rd-gallery">
+              {images.map((img) => (
+                <div key={img.id} className="rd-image-card">
+                  <img src={img.dataUrl} alt={img.name} />
+                  <div className="rd-img-caption">{img.name}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* FOOTER: Tags */}
+        {reflection.tags && reflection.tags.length > 0 && (
+          <div className="rd-tags-footer">
+            {reflection.tags.map((tag) => (
+              <span key={tag} className="rd-footer-tag">#{tag}</span>
             ))}
           </div>
         )}
-      </section>
-
-      {isEditing ? (
-        <footer className="reflection-detail__footer">
-          <button type="button" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save updates"}
-          </button>
-        </footer>
-      ) : null}
-    </section>
+      </div>
+    </div>
   );
 };

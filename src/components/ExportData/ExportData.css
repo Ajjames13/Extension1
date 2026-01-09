@@ -1,42 +1,57 @@
-.export-data {
-  display: grid;
-  gap: 12px;
-  padding: 20px;
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+.export-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  overflow: hidden;
 }
 
-.export-data header h3 {
-  margin: 0 0 4px;
+.export-header {
+  padding: 16px 20px;
+  background: var(--bg-input);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
-.export-data header p {
+.export-header h3 {
   margin: 0;
-  color: #4b5563;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.05em;
 }
 
-.export-data__actions {
+.export-header p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.export-actions {
+  padding: 20px;
   display: flex;
   gap: 12px;
-  flex-wrap: wrap;
 }
 
-.export-data__actions button {
-  border: none;
-  background: #2563eb;
-  color: #ffffff;
-  padding: 8px 14px;
-  border-radius: 10px;
+.export-btn {
+  background: var(--bg-hover);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 12px 20px;
+  font-weight: 600;
+  font-size: 12px;
+  border-radius: 4px;
   cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
 }
 
-.export-data__actions button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.export-btn:hover {
+  background: var(--bg-input);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 
-.export-data__status {
-  margin: 0;
-  color: #4b5563;
+.export-status {
+  padding: 0 20px 20px;
+  font-size: 12px;
+  color: var(--color-win);
 }

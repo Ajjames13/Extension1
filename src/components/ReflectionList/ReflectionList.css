@@ -1,179 +1,292 @@
-.reflection-list {
+/* --- Calendar Layout --- */
+
+.calendar-container {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 24px;
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  gap: 20px;
+  position: relative;
+  /* Ensure container clips the sidebar */
+  overflow-x: hidden; 
+  min-height: 600px;
 }
 
-.reflection-list__header {
+/* Header & Stats */
+.calendar-header {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
   justify-content: space-between;
+  align-items: center;
+  background: var(--bg-card);
+  padding: 16px 24px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
 }
 
-.reflection-list__header h2 {
-  margin: 0 0 4px;
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
-.reflection-list__header p {
+.calendar-nav h2 {
   margin: 0;
-  color: #4b5563;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  width: 200px;
+  text-align: center;
 }
 
-.reflection-list__filters {
-  display: grid;
+.calendar-nav button {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.calendar-nav button:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.calendar-stats {
+  display: flex;
   gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  width: min(640px, 100%);
 }
 
-.reflection-list__filters input,
-.reflection-list__filters select {
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid #d1d5db;
-  font-size: 14px;
-}
-
-.reflection-list__status {
-  color: #b91c1c;
-  margin: 0;
-}
-
-.reflection-list__table {
+.stat-pill {
   display: flex;
   flex-direction: column;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  overflow: hidden;
+  align-items: flex-end;
+  padding: 0 12px;
+  border-right: 1px solid var(--border-subtle);
 }
 
-.reflection-list__row {
-  display: grid;
-  grid-template-columns: 72px 1fr 1fr 140px 140px 160px;
-  align-items: center;
-  padding: 12px 16px;
-  gap: 16px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #ffffff;
-  text-align: left;
-  font: inherit;
-  cursor: pointer;
+.stat-pill:last-child {
+  border-right: none;
 }
 
-.reflection-list__row:last-child {
-  border-bottom: none;
-}
-
-.reflection-list__row--header {
-  background: #f9fafb;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.stat-pill .label {
+  font-size: 10px;
+  color: var(--text-secondary);
   font-weight: 700;
-  color: #6b7280;
+  letter-spacing: 0.05em;
+}
+
+.stat-pill .value {
+  font-size: 16px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stat-pill.win .value {
+  color: var(--color-win);
+}
+
+/* Calendar Grid */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  background: var(--bg-app);
+}
+
+.cal-day-header {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  padding: 8px;
+  text-transform: uppercase;
+  background: var(--bg-card);
+}
+
+.cal-day {
+  background: var(--bg-card);
+  min-height: 100px;
+  padding: 8px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  border: 1px solid transparent;
+}
+
+.cal-day:hover {
+  background: var(--bg-hover);
+}
+
+.cal-day.active {
+  background: var(--bg-hover);
+  border-color: var(--accent-primary);
+}
+
+.cal-day.empty {
+  background: transparent;
   cursor: default;
 }
 
-.reflection-list__row--header span {
-  white-space: nowrap;
+.cal-day-num {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
 }
 
-.reflection-list__row:hover {
-  background: #f3f4f6;
-}
-
-.reflection-list__thumb {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: #e2e8f0;
-  display: grid;
-  place-items: center;
+.cal-day.has-data .cal-day-num {
+  color: var(--text-primary);
   font-weight: 700;
-  color: #334155;
 }
 
-.reflection-list__empty {
-  padding: 24px;
-  text-align: center;
-  color: #6b7280;
-}
-
-.reflection-list__pagination {
+/* Dots Visualization */
+.cal-dots {
   display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dot.win { background: var(--color-win); box-shadow: 0 0 4px rgba(16, 185, 129, 0.4); }
+.dot.loss { background: var(--color-loss); box-shadow: 0 0 4px rgba(239, 68, 68, 0.4); }
+.dot.be { background: var(--color-warn); }
+
+/* --- Sidebar (Slide Out) --- */
+
+.day-sidebar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  background: var(--bg-card);
+  border-left: 1px solid var(--border-subtle);
+  transform: translateX(100%);
+  transition: transform 0.3s ease-in-out;
+  box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+}
+
+.day-sidebar.open {
+  transform: translateX(0);
+}
+
+.sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  background: var(--bg-input);
 }
 
-.reflection-list__pagination button {
-  border: none;
-  background: #2563eb;
-  color: #ffffff;
-  padding: 8px 14px;
-  border-radius: 10px;
-  cursor: pointer;
-}
-
-.reflection-list__pagination button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.reflection-list__detail {
-  border-top: 1px solid #e5e7eb;
-  padding-top: 24px;
-  display: grid;
-  gap: 16px;
-}
-
-.reflection-list__detail header h3 {
-  margin: 0 0 4px;
-}
-
-.reflection-list__detail header p {
+.sidebar-header h3 {
   margin: 0;
-  color: #6b7280;
+  font-size: 16px;
+  color: var(--text-primary);
 }
 
-.reflection-list__detail-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-}
-
-.reflection-list__detail-grid span {
-  display: block;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #6b7280;
-}
-
-.reflection-list__detail-grid strong {
-  display: block;
-  margin-top: 4px;
-}
-
-.reflection-list__detail ul {
-  margin: 8px 0 0;
-  padding-left: 18px;
-}
-
-.reflection-list__detail-close {
-  justify-self: start;
+.sidebar-header button {
+  background: none;
   border: none;
-  background: #e5e7eb;
-  color: #111827;
-  padding: 8px 14px;
-  border-radius: 10px;
+  color: var(--text-secondary);
+  font-size: 24px;
   cursor: pointer;
 }
 
-.reflection-list__detail-close:hover {
-  background: #d1d5db;
+.sidebar-content {
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trade-card {
+  background: var(--bg-app);
+  border: 1px solid var(--border-subtle);
+  padding: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.trade-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--text-secondary);
+}
+
+.trade-card.win-border { border-left: 3px solid var(--color-win); }
+.trade-card.loss-border { border-left: 3px solid var(--color-loss); }
+
+.trade-card-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.trade-card-header .symbol {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.badge.win { background: rgba(16, 185, 129, 0.2); color: var(--color-win); }
+.badge.loss { background: rgba(239, 68, 68, 0.2); color: var(--color-loss); }
+
+.trade-card-body {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.trade-card-body .row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.setup-name {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.empty-state {
+  color: var(--text-secondary);
+  text-align: center;
+  margin-top: 40px;
+  font-size: 14px;
+}
+
+/* --- Modal Overlay (Simple) --- */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.modal-content {
+  background: var(--bg-card);
+  width: 90%;
+  max-width: 800px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
 }

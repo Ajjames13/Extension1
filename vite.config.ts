@@ -1,6 +1,5 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { resolve } from "node:path";
 
 export default defineConfig({
   base: "./",
@@ -8,8 +7,9 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        popup: resolve(__dirname, "popup.html"),
-        dashboard: resolve(__dirname, "dashboard.html")
+        // Simple relative paths are safer
+        popup: "popup.html",
+        dashboard: "dashboard.html"
       }
     }
   }

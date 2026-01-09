@@ -1,101 +1,205 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap');
+
 :root {
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
-  color: #1f2937;
-  background-color: #f9fafb;
+  /* --- DARK FINANCE THEME --- */
+  
+  /* Backgrounds */
+  --bg-app: #0f1115;       /* Deep Charcoal (Main Background) */
+  --bg-card: #181b21;      /* Lighter Charcoal (Containers) */
+  --bg-input: #232730;     /* Input Fields */
+  --bg-hover: #2d313a;     /* Hover States */
+  
+  /* Text */
+  --text-primary: #e0e0e0; /* High Contrast Text */
+  --text-secondary: #9ca3af; /* Muted Labels */
+  --text-muted: #4b5563;   /* Disabled/Subtle */
+
+  /* Accents */
+  --accent-primary: #3b82f6; /* Electric Blue */
+  --accent-glow: rgba(59, 130, 246, 0.5);
+  --border-subtle: #2d313a;  /* Thin Borders */
+  
+  /* Semantic Colors */
+  --color-win: #10b981;    /* Emerald Green */
+  --color-loss: #ef4444;   /* Crimson Red */
+  --color-warn: #f59e0b;   /* Amber */
+
+  /* Fonts */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "Roboto Mono", monospace;
 }
 
+/* --- CRITICAL LAYOUT FIXES --- */
+
+/* 1. Base Reset */
+html {
+  box-sizing: border-box;
+}
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+
+/* 2. Default Body Styles */
 body {
   margin: 0;
-  min-height: 100vh;
+  padding: 0;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
-#root {
-  min-height: 100vh;
+/* 3. POPUP SPECIFIC: Strict Fixed Dimensions */
+/* This ensures the extension popup never collapses */
+body.popup-mode {
+  width: 500px !important;
+  height: 600px !important;
+  overflow: hidden; /* Prevent outer scrollbars */
 }
+
+/* 4. DASHBOARD SPECIFIC: Full Screen */
+body.dashboard-mode {
+  width: 100%;
+  min-height: 100vh;
+  overflow-y: auto;
+}
+
+/* 5. React Root Container */
+#root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* --- Scrollbar Styling --- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-app);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* --- App Component Layouts --- */
 
 .app {
   display: flex;
   flex-direction: column;
   gap: 24px;
   padding: 24px;
-  max-width: 900px;
+  width: 100%;
+  /* Ensure padding doesn't add to width */
+  box-sizing: border-box; 
+}
+
+/* Popup specific: Allow scrolling inside the content area */
+.app--popup {
+  height: 100%;
+  overflow-y: auto; 
+}
+
+/* Dashboard specific: Center content with a max width */
+.app--dashboard {
+  max-width: 1200px;
   margin: 0 auto;
 }
+
+/* --- Header Styles --- */
 
 .app__header-top {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .app__header h1 {
   margin: 8px 0;
   font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
 }
 
 .app__eyebrow {
   margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  font-size: 12px;
-  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-primary);
 }
 
 .app__description {
   margin: 0;
-  color: #4b5563;
+  color: var(--text-secondary);
+  font-size: 14px;
+  max-width: 600px;
 }
 
 .app__content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .app__link {
-  color: #2563eb;
+  color: var(--accent-primary);
   font-weight: 600;
   text-decoration: none;
-  font-size: 14px;
+  font-size: 13px;
+  font-family: var(--font-mono);
 }
 
 .app__link:hover {
   text-decoration: underline;
+  text-shadow: 0 0 8px var(--accent-glow);
 }
 
-/* Dashboard Tabs */
+/* --- Dashboard Tabs --- */
+
 .app__dashboard-layout {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 .app__tabs {
   display: flex;
-  gap: 8px;
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 1px;
+  gap: 2px; /* Tighter gap for segmented look */
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 0;
 }
 
 .app__tabs button {
   border: none;
   background: transparent;
-  padding: 8px 16px;
-  border-radius: 8px 8px 0 0;
-  font-weight: 600;
-  color: #6b7280;
-  cursor: pointer;
+  padding: 12px 20px;
   border-bottom: 2px solid transparent;
-  transition: all 0.2s;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.02em;
 }
 
 .app__tabs button:hover {
-  color: #1f2937;
-  background: #f3f4f6;
+  color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 .app__tabs button.active {
-  color: #2563eb;
-  border-bottom-color: #2563eb;
-  background: #eff6ff;
+  color: var(--accent-primary);
+  border-bottom-color: var(--accent-primary);
+  background: rgba(59, 130, 246, 0.05); /* Subtle glow */
 }

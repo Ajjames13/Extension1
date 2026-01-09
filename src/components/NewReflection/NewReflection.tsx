@@ -4,456 +4,408 @@ import {
   ChecklistSnapshotItem
 } from "../ChecklistSnapshot/ChecklistSnapshot";
 import { getChecklistTemplate } from "../../storage/checklistStore";
-import {
-  ReflectionQuestion,
-  getReflectionQuestions
-} from "../../storage/reflectionQuestionsStore";
 import { createReflection } from "../../storage/reflectionStore";
+import { getSectionOrder, SectionConfig, DEFAULT_SECTION_ORDER } from "../../storage/settingsStore";
 import "./NewReflection.css";
 
-type QuestionTemplate = {
-  id: string;
-  label: string;
-  placeholder: string;
-};
+// --- Types ---
+type StopLossType = "structural" | "emotional" | "arbitrary";
+type OutcomeType = "win" | "loss" | "break_even";
 
 type DraftState = {
-  instrument: string;
-  timeframe: string;
-  direction: string;
-  prices: string;
+  symbol: string;
   setupName: string;
-  outcome: string;
-  confidence: string;
+  direction: "long" | "short";
+  entryPrice: string;
+  stopLossPrice: string;
+  stopLossType: StopLossType | null;
+  targetPrice: string;
+  targetType: string;
+  outcome: OutcomeType | null;
+  confidence: number;
+  notes: string;
   tags: string;
-  questions: Record<string, string>;
   images: Array<{ name: string; dataUrl: string }>;
   checklist: ChecklistSnapshotItem[];
 };
 
-const buildQuestionDefaults = (questions: ReflectionQuestion[]) => {
-  return questions.reduce<Record<string, string>>((acc, item) => {
-    acc[item.id] = "";
-    return acc;
-  }, {});
-};
+const CONFIDENCE_SCALE = Array.from({ length: 10 }, (_, i) => i + 1);
 
-const questionTemplate: QuestionTemplate[] = [
-  {
-    id: "thesis",
-    label: "What is your core thesis for this trade?",
-    placeholder: "Summarize the idea behind the setup."
-  },
-  {
-    id: "risk",
-    label: "What is the primary risk you are watching?",
-    placeholder: "Note invalidation or stop context."
-  },
-  {
-    id: "improvement",
-    label: "What would you improve next time?",
-    placeholder: "Capture a key learning from this reflection."
-  }
+const TARGET_TEMPLATES = [
+  "Manual",
+  "Resting Liquidity",
+  "Next FVG",
+  "Measured Move",
+  "Previous High/Low"
 ];
 
 const emptyDraft: DraftState = {
-  instrument: "",
-  timeframe: "",
-  direction: "",
-  prices: "",
+  symbol: "",
   setupName: "",
-  outcome: "",
-  confidence: "",
+  direction: "long",
+  entryPrice: "",
+  stopLossPrice: "",
+  stopLossType: null,
+  targetPrice: "",
+  targetType: "Manual",
+  outcome: null,
+  confidence: 5,
+  notes: "",
   tags: "",
-  questions: questionTemplate.reduce<Record<string, string>>((acc, item) => {
-    acc[item.id] = "";
-    return acc;
-  }, {}),
   images: [],
   checklist: []
 };
 
-let cachedDraft: DraftState | null = null;
-
-const buildBody = (draft: DraftState) => {
-  return JSON.stringify(
-    {
-      instrument: draft.instrument,
-      timeframe: draft.timeframe,
-      direction: draft.direction,
-      prices: draft.prices,
-      setupName: draft.setupName,
-      outcome: draft.outcome,
-      confidence: draft.confidence,
-      tags: draft.tags,
-      questions: draft.questions,
-      checklist: draft.checklist
-    },
-    null,
-    2
-  );
+const getConfidenceColor = (val: number) => {
+  const hue = ((val - 1) / 9) * 120; 
+  return `hsl(${hue}, 70%, 45%)`;
 };
 
 export const NewReflection = () => {
-  const [draft, setDraft] = useState<DraftState>(
-    () => cachedDraft ?? emptyDraft
-  );
-  const [questionTemplate, setQuestionTemplate] = useState<
-    ReflectionQuestion[]
-  >([]);
+  const [draft, setDraft] = useState<DraftState>(emptyDraft);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [sectionOrder, setSectionOrder] = useState<SectionConfig[]>(DEFAULT_SECTION_ORDER);
 
-  const requiredFieldsFilled = useMemo(() => {
+  // --- Gatekeeper Logic ---
+  const isChecklistComplete = useMemo(() => {
     return (
-      draft.instrument.trim() &&
-      draft.timeframe.trim() &&
-      draft.direction.trim() &&
-      draft.setupName.trim() &&
-      draft.outcome.trim() &&
-      draft.confidence.trim()
+      draft.checklist.length > 0 && 
+      draft.checklist.every((item) => item.checked)
     );
-  }, [draft]);
+  }, [draft.checklist]);
 
-  useEffect(() => {
-    cachedDraft = draft;
-  }, [draft]);
-
+  // --- Load Data on Mount ---
   useEffect(() => {
     let isMounted = true;
 
-    const loadChecklist = async () => {
-      const template = await getChecklistTemplate();
-      if (!isMounted) {
-        return;
-      }
-      setDraft((prev) => {
-        if (prev.checklist.length > 0) {
-          return prev;
-        }
-        return {
-          ...prev,
-          checklist: template.map((item) => ({
-            id: item.id,
-            text: item.text,
-            checked: false
-          }))
-        };
-      });
-    };
-
-    loadChecklist();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadQuestions = async () => {
-      const template = await getReflectionQuestions();
-      if (!isMounted) {
-        return;
-      }
-      setQuestionTemplate(template);
-      setDraft((prev) => {
-        const defaults = buildQuestionDefaults(template);
-        return {
-          ...prev,
-          questions: {
-            ...defaults,
-            ...prev.questions
-          }
-        };
-      });
-    };
-
-    loadQuestions();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const handleFieldChange = (field: keyof DraftState) => {
-    return (
-      event:
-        | React.ChangeEvent<HTMLInputElement>
-        | React.ChangeEvent<HTMLSelectElement>
-        | React.ChangeEvent<HTMLTextAreaElement>
-    ) => {
+    // Load Checklist
+    getChecklistTemplate().then((template) => {
+      if (!isMounted) return;
       setDraft((prev) => ({
         ...prev,
-        [field]: event.target.value
+        checklist: template.map((t) => ({ 
+          id: t.id, 
+          text: t.text, 
+          checked: false 
+        }))
       }));
-    };
+    });
+
+    // Load Layout Preferences
+    getSectionOrder().then((order) => {
+      if (isMounted && order.length > 0) {
+        setSectionOrder(order);
+      }
+    });
+
+    return () => { isMounted = false; };
+  }, []);
+
+  // --- Handlers ---
+  const handleFieldChange = (field: keyof DraftState) => (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
+    setDraft((prev) => ({ ...prev, [field]: e.target.value }));
   };
 
-  const handleQuestionChange = (id: string) => {
-    return (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const value = event.target.value;
-      setDraft((prev) => ({
-        ...prev,
-        questions: {
-          ...prev.questions,
-          [id]: value
-        }
-      }));
-    };
-  };
-
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-    if (!files.length) {
-      return;
-    }
-
-    const availableSlots = Math.max(0, 5 - draft.images.length);
-    const nextFiles = files.slice(0, availableSlots);
-
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+    const files = Array.from(e.target.files).slice(0, 5 - draft.images.length);
+    
     Promise.all(
-      nextFiles.map(
-        (file) =>
-          new Promise<{ name: string; dataUrl: string }>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              resolve({ name: file.name, dataUrl: reader.result as string });
-            };
-            reader.onerror = () => reject(reader.error);
-            reader.readAsDataURL(file);
-          })
-      )
-    )
-      .then((uploaded) => {
-        setDraft((prev) => ({
-          ...prev,
-          images: [...prev.images, ...uploaded]
-        }));
-      })
-      .catch(() => {
-        setStatusMessage("Unable to read one of the selected images.");
-      })
-      .finally(() => {
-        event.target.value = "";
-      });
-  };
-
-  const handleChecklistToggle = (id: string) => {
-    setDraft((prev) => ({
-      ...prev,
-      checklist: prev.checklist.map((item) =>
-        item.id === id ? { ...item, checked: !item.checked } : item
-      )
-    }));
+      files.map((file) => new Promise<{ name: string; dataUrl: string }>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({ name: file.name, dataUrl: reader.result as string });
+        reader.readAsDataURL(file);
+      }))
+    ).then((imgs) => setDraft((p) => ({ ...p, images: [...p.images, ...imgs] })));
   };
 
   const handleRemoveImage = (name: string) => {
     setDraft((prev) => ({
       ...prev,
-      images: prev.images.filter((image) => image.name !== name)
+      images: prev.images.filter((img) => img.name !== name)
     }));
   };
 
-  const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setStatusMessage(null);
-
-    if (!requiredFieldsFilled) {
-      setStatusMessage("Please fill all required fields before saving.");
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!draft.symbol || !draft.outcome) {
+      setStatusMessage("Symbol and Outcome are required.");
       return;
     }
-
+    
     setIsSaving(true);
     try {
+      const bodyPayload = JSON.stringify({
+        ...draft,
+        instrument: draft.symbol, 
+        prices: `E: ${draft.entryPrice} | S: ${draft.stopLossPrice} | T: ${draft.targetPrice}`
+      }, null, 2);
+
       await createReflection({
-        title: draft.setupName.trim(),
-        body: buildBody(draft),
-        tags: draft.tags
-          .split(",")
-          .map((tag) => tag.trim())
-          .filter(Boolean),
-        images: draft.images.map((image) => ({
-          name: image.name,
-          dataUrl: image.dataUrl
-        }))
+        title: `${draft.symbol} - ${draft.setupName}`,
+        body: bodyPayload,
+        tags: draft.tags.split(",").map(t => t.trim()).filter(Boolean),
+        images: draft.images
       });
 
-      setDraft((prev) => ({
-        ...emptyDraft,
-        checklist: prev.checklist.map((item) => ({
-          ...item,
-          checked: false
-        }))
-      }));
-      setDraft(emptyDraft);
-      setStatusMessage("Reflection saved.");
-    } catch (error) {
-      setStatusMessage("Unable to save reflection.");
+      setDraft({ 
+        ...emptyDraft, 
+        checklist: draft.checklist.map(c => ({...c, checked: false})) 
+      });
+      setStatusMessage("Trade recap saved successfully.");
+    } catch (err) {
+      console.error(err);
+      setStatusMessage("Error saving trade.");
     } finally {
       setIsSaving(false);
     }
   };
 
+  // --- Render Sections (Sub-components) ---
+
+  const renderSectionSetup = () => (
+    <div className="nr-card" key="setup">
+      <div className="nr-card__header">:: Setup Details</div>
+      <div className="nr-grid-2">
+        <label className="nr-label">
+          SYMBOL
+          <input 
+            className="nr-input font-mono" 
+            placeholder="ES_F, BTCUSD" 
+            value={draft.symbol}
+            onChange={handleFieldChange("symbol")}
+          />
+        </label>
+        <label className="nr-label">
+          DIRECTION
+          <div className="nr-toggle-group">
+            {["long", "short"].map((dir) => (
+              <button
+                key={dir}
+                type="button"
+                className={`nr-toggle-btn ${draft.direction === dir ? "active" : ""}`}
+                onClick={() => setDraft(p => ({ ...p, direction: dir as "long" | "short" }))}
+              >
+                {dir.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </label>
+      </div>
+      
+      <label className="nr-label">
+        CONFIDENCE ({draft.confidence}/10)
+        <div className="nr-confidence-track">
+          {CONFIDENCE_SCALE.map((num) => (
+            <button
+              key={num}
+              type="button"
+              className={`nr-conf-node ${draft.confidence === num ? "active" : ""}`}
+              style={{ 
+                borderColor: getConfidenceColor(num),
+                backgroundColor: draft.confidence === num ? getConfidenceColor(num) : undefined,
+                color: draft.confidence === num ? "#fff" : undefined
+              }}
+              onClick={() => setDraft(p => ({ ...p, confidence: num }))}
+            >
+              {num}
+            </button>
+          ))}
+        </div>
+      </label>
+      <label className="nr-label">
+        SETUP NAME
+        <input 
+          className="nr-input" 
+          placeholder="e.g. AM Session Reversal" 
+          value={draft.setupName}
+          onChange={handleFieldChange("setupName")}
+        />
+      </label>
+    </div>
+  );
+
+  const renderSectionExecution = () => (
+    <div className="nr-card" key="execution">
+      <div className="nr-card__header">:: Execution & Risk</div>
+      <div className="nr-grid-2">
+        <label className="nr-label">
+          ENTRY PRICE
+          <input 
+            className="nr-input font-mono" 
+            value={draft.entryPrice} onChange={handleFieldChange("entryPrice")} 
+          />
+        </label>
+        <label className="nr-label">
+          TARGET PRICE
+           <div className="nr-input-group">
+            <input 
+              className="nr-input font-mono" 
+              value={draft.targetPrice} onChange={handleFieldChange("targetPrice")} 
+            />
+            <select 
+              className="nr-select-addon"
+              value={draft.targetType}
+              onChange={(e) => setDraft(p => ({ ...p, targetType: e.target.value }))}
+            >
+              {TARGET_TEMPLATES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        </label>
+      </div>
+      <div className="nr-separator" />
+      <label className="nr-label">
+        STOP LOSS PRICE
+        <input 
+          className="nr-input font-mono" 
+          value={draft.stopLossPrice} 
+          onChange={handleFieldChange("stopLossPrice")}
+          placeholder="Leave empty if no stop used"
+        />
+      </label>
+      {draft.stopLossPrice && (
+        <div className="nr-sub-options fade-in">
+          <span className="nr-label-sm">STOP TYPE:</span>
+          <div className="nr-chips">
+            {(["structural", "emotional", "arbitrary"] as const).map((type) => (
+              <button
+                key={type}
+                type="button"
+                className={`nr-chip ${draft.stopLossType === type ? "active" : ""}`}
+                onClick={() => setDraft(p => ({ ...p, stopLossType: type }))}
+              >
+                {type.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderSectionOutcome = () => (
+    <div className="nr-card" key="outcome">
+      <div className="nr-card__header">:: Outcome</div>
+      <div className="nr-outcome-grid">
+        <button
+          type="button"
+          className={`nr-outcome-btn win ${draft.outcome === "win" ? "active" : ""}`}
+          onClick={() => setDraft(p => ({ ...p, outcome: "win" }))}
+        >
+          WIN
+        </button>
+        <button
+          type="button"
+          className={`nr-outcome-btn loss ${draft.outcome === "loss" ? "active" : ""}`}
+          onClick={() => setDraft(p => ({ ...p, outcome: "loss" }))}
+        >
+          LOSS
+        </button>
+        <button
+          type="button"
+          className={`nr-outcome-btn be ${draft.outcome === "break_even" ? "active" : ""}`}
+          onClick={() => setDraft(p => ({ ...p, outcome: "break_even" }))}
+        >
+          STOPPED AT B/E
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderSectionEvidence = () => (
+    <div className="nr-card" key="evidence">
+      <div className="nr-card__header">:: Charts & Notes</div>
+      <textarea 
+        className="nr-textarea"
+        rows={4}
+        placeholder="Key thoughts, thesis, or improvements..."
+        value={draft.notes}
+        onChange={handleFieldChange("notes")}
+      />
+      <div className="nr-image-upload">
+        <label className="nr-upload-btn">
+          <span>+ Add Image ({draft.images.length}/5)</span>
+          <input type="file" accept="image/*" multiple onChange={handleImageUpload} hidden />
+        </label>
+        <div className="nr-thumbnails">
+          {draft.images.map(img => (
+            <div key={img.name} className="nr-thumb">
+              <img src={img.dataUrl} alt="thumb" />
+              <button 
+                type="button" 
+                onClick={() => handleRemoveImage(img.name)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+      <input 
+        className="nr-input mt-2" 
+        placeholder="Tags (comma separated)" 
+        value={draft.tags}
+        onChange={handleFieldChange("tags")}
+      />
+    </div>
+  );
+
+  // --- Map IDs to Render Functions ---
+  const sectionRenderer: Record<string, () => JSX.Element> = {
+    setup: renderSectionSetup,
+    execution: renderSectionExecution,
+    outcome: renderSectionOutcome,
+    evidence: renderSectionEvidence
+  };
+
   return (
     <form className="new-reflection" onSubmit={handleSave}>
-      <header className="new-reflection__header">
-        <h2>New Reflection</h2>
-        <p>Capture a quick reflection about the trade setup.</p>
+      <header className="nr-header">
+        <h2>ADD TRADE RECAP</h2>
+        <span className="nr-date">{new Date().toLocaleDateString()}</span>
       </header>
 
-      <section className="new-reflection__section">
-        <label>
-          Instrument *
-          <input
-            type="text"
-            name="instrument"
-            value={draft.instrument}
-            onChange={handleFieldChange("instrument")}
-            required
+      {/* SECTION 1: THE GATEKEEPER (Always Top) */}
+      <section className="nr-section">
+        <div className="nr-card checklist-card">
+          <div className="nr-card__header">PRE-TRADE CHECKLIST</div>
+          <ChecklistSnapshot
+            items={draft.checklist}
+            onToggle={(id) => setDraft(p => ({
+              ...p,
+              checklist: p.checklist.map(i => i.id === id ? { ...i, checked: !i.checked } : i)
+            }))}
           />
-        </label>
-        <label>
-          Timeframe *
-          <input
-            type="text"
-            name="timeframe"
-            value={draft.timeframe}
-            onChange={handleFieldChange("timeframe")}
-            required
-          />
-        </label>
-        <label>
-          Direction *
-          <select
-            name="direction"
-            value={draft.direction}
-            onChange={handleFieldChange("direction")}
-            required
-          >
-            <option value="">Select</option>
-            <option value="long">Long</option>
-            <option value="short">Short</option>
-            <option value="neutral">Neutral</option>
-          </select>
-        </label>
-        <label>
-          Prices
-          <input
-            type="text"
-            name="prices"
-            value={draft.prices}
-            onChange={handleFieldChange("prices")}
-            placeholder="Entry, stop, target"
-          />
-        </label>
-        <label>
-          Setup name *
-          <input
-            type="text"
-            name="setupName"
-            value={draft.setupName}
-            onChange={handleFieldChange("setupName")}
-            required
-          />
-        </label>
-        <label>
-          Outcome *
-          <input
-            type="text"
-            name="outcome"
-            value={draft.outcome}
-            onChange={handleFieldChange("outcome")}
-            required
-          />
-        </label>
-        <label>
-          Confidence *
-          <input
-            type="text"
-            name="confidence"
-            value={draft.confidence}
-            onChange={handleFieldChange("confidence")}
-            required
-          />
-        </label>
-        <label>
-          Tags
-          <input
-            type="text"
-            name="tags"
-            value={draft.tags}
-            onChange={handleFieldChange("tags")}
-            placeholder="comma,separated,tags"
-          />
-        </label>
-      </section>
-
-      <section className="new-reflection__section">
-        <h3>Reflection questions</h3>
-        <div className="new-reflection__questions">
-          {questionTemplate.map((question) => (
-            <label key={question.id}>
-              {question.label}
-              <textarea
-                name={question.id}
-                value={draft.questions[question.id] ?? ""}
-                onChange={handleQuestionChange(question.id)}
-                placeholder={question.placeholder}
-                rows={3}
-              />
-            </label>
-          ))}
         </div>
       </section>
 
-      <section className="new-reflection__section">
-        <ChecklistSnapshot
-          items={draft.checklist}
-          onToggle={handleChecklistToggle}
-        />
-      </section>
+      {/* DYNAMIC SECTIONS: Render based on Settings order */}
+      <div className={`nr-locked-content ${isChecklistComplete ? "unlocked" : "locked"}`}>
+        {sectionOrder.map((section) => {
+          if (!section.visible) return null;
+          const renderer = sectionRenderer[section.id];
+          return renderer ? renderer() : null;
+        })}
 
-      <section className="new-reflection__section">
-        <h3>Images (up to 5)</h3>
-        <input
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={handleImageUpload}
-          disabled={draft.images.length >= 5}
-        />
-        {draft.images.length > 0 ? (
-          <div className="new-reflection__images">
-            {draft.images.map((image) => (
-              <figure key={image.name} className="new-reflection__image">
-                <img src={image.dataUrl} alt={image.name} />
-                <figcaption>{image.name}</figcaption>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveImage(image.name)}
-                >
-                  Remove
-                </button>
-              </figure>
-            ))}
-          </div>
-        ) : (
-          <p className="new-reflection__hint">
-            Add screenshots or charts to support the reflection.
-          </p>
-        )}
-      </section>
-
-      <footer className="new-reflection__footer">
-        <button type="submit" disabled={isSaving}>
-          {isSaving ? "Saving..." : "Save reflection"}
-        </button>
-        {statusMessage ? (
-          <span className="new-reflection__status">{statusMessage}</span>
-        ) : null}
-      </footer>
+        <footer className="nr-footer">
+          <button 
+            type="submit" 
+            className="nr-save-btn" 
+            disabled={isSaving || !isChecklistComplete}
+          >
+            {isSaving ? "SAVING..." : "SAVE TRADE RECAP"}
+          </button>
+          
+          {statusMessage && (
+            <div className={`nr-status ${statusMessage.includes("Error") ? "error" : "success"}`}>
+              {statusMessage}
+            </div>
+          )}
+        </footer>
+      </div>
     </form>
   );
 };

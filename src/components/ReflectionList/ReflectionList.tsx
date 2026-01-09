@@ -1,332 +1,259 @@
 import { useEffect, useMemo, useState } from "react";
 import { listReflections } from "../../storage/reflectionStore";
-import type { Reflection } from "../../storage/db";
+import { Reflection } from "../../storage/db";
+import { ReflectionDetail } from "../ReflectionDetail/ReflectionDetail";
 import "./ReflectionList.css";
 
-type ParsedReflection = {
-  instrument: string;
-  timeframe: string;
-  direction: string;
-  prices: string;
-  setupName: string;
-  outcome: string;
-  confidence: string;
-  tags: string;
-  notes: string;
-  questions: Record<string, string>;
+// --- Types ---
+
+// Helper type for the parsed body of our new "Financy" reflections
+type ParsedBody = {
+  symbol?: string;
+  outcome?: "win" | "loss" | "break_even";
+  confidence?: number;
+  setupName?: string;
+  entryPrice?: string;
+  direction?: "long" | "short";
 };
 
-type FiltersState = {
-  instrument: string;
-  direction: string;
-  outcome: string;
-  keyword: string;
+type DayStats = {
+  date: string; // ISO date string YYYY-MM-DD
+  trades: Reflection[];
+  winCount: number;
+  lossCount: number;
+  beCount: number;
 };
 
-type ReflectionRow = {
-  reflection: Reflection;
-  parsed: ParsedReflection;
+// --- Helpers ---
+
+const getDaysInMonth = (year: number, month: number) => {
+  return new Date(year, month + 1, 0).getDate();
 };
 
-const PAGE_SIZE = 25;
+const getFirstDayOfMonth = (year: number, month: number) => {
+  return new Date(year, month, 1).getDay();
+};
 
-const parseReflectionBody = (body: string): ParsedReflection => {
+// Safely parse the JSON body we stored in NewReflection.tsx
+const parseReflection = (r: Reflection): ParsedBody => {
   try {
-    const parsed = JSON.parse(body) as Partial<ParsedReflection>;
-    return {
-      instrument: parsed.instrument ?? "",
-      timeframe: parsed.timeframe ?? "",
-      direction: parsed.direction ?? "",
-      prices: parsed.prices ?? "",
-      setupName: parsed.setupName ?? "",
-      outcome: parsed.outcome ?? "",
-      confidence: parsed.confidence ?? "",
-      tags: parsed.tags ?? "",
-      notes: parsed.notes ?? "",
-      questions: parsed.questions ?? {}
-    };
+    return JSON.parse(r.body);
   } catch {
-    return {
-      instrument: "",
-      timeframe: "",
-      direction: "",
-      prices: "",
-      setupName: "",
-      outcome: "",
-      confidence: "",
-      tags: "",
-      notes: "",
-      questions: {}
-    };
+    return {}; // Handle legacy/plain text data safely
   }
 };
 
-const buildKeywordHaystack = (row: ReflectionRow) => {
-  const answers = Object.values(row.parsed.questions).join(" ");
-  return [
-    row.parsed.setupName,
-    row.parsed.tags,
-    row.parsed.notes,
-    answers,
-    row.reflection.body
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-};
-
-const buildReflectionRows = (items: Reflection[]): ReflectionRow[] => {
-  return items.map((reflection) => ({
-    reflection,
-    parsed: parseReflectionBody(reflection.body)
-  }));
+const formatDate = (date: Date) => {
+  return date.toISOString().split("T")[0];
 };
 
 export const ReflectionList = () => {
-  const [rows, setRows] = useState<ReflectionRow[]>([]);
-  const [filters, setFilters] = useState<FiltersState>({
-    instrument: "",
-    direction: "",
-    outcome: "",
-    keyword: ""
-  });
-  const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<ReflectionRow | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [reflections, setReflections] = useState<Reflection[]>([]);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [selectedReflectionId, setSelectedReflectionId] = useState<number | null>(null);
 
+  // Load data on mount
   useEffect(() => {
-    let isMounted = true;
-
-    const load = async () => {
-      try {
-        const reflections = await listReflections();
-        if (!isMounted) {
-          return;
-        }
-        setRows(buildReflectionRows(reflections));
-      } catch {
-        if (isMounted) {
-          setStatusMessage("Unable to load reflections.");
-        }
-      }
-    };
-
-    load();
-
-    return () => {
-      isMounted = false;
-    };
+    listReflections().then(setReflections);
   }, []);
 
-  const filteredRows = useMemo(() => {
-    const keyword = filters.keyword.trim().toLowerCase();
+  // --- Calendar Logic ---
 
-    const result = rows.filter((row) => {
-      if (
-        filters.instrument &&
-        row.parsed.instrument.toLowerCase() !== filters.instrument.toLowerCase()
-      ) {
-        return false;
-      }
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const monthName = currentDate.toLocaleString("default", { month: "long" });
 
-      if (
-        filters.direction &&
-        row.parsed.direction.toLowerCase() !== filters.direction.toLowerCase()
-      ) {
-        return false;
-      }
+  // 1. Group trades by Date
+  const tradesByDay = useMemo(() => {
+    const map = new Map<string, Reflection[]>();
+    
+    reflections.forEach((r) => {
+      const dayKey = r.createdAt.split("T")[0]; // YYYY-MM-DD
+      const existing = map.get(dayKey) || [];
+      map.set(dayKey, [...existing, r]);
+    });
+    
+    return map;
+  }, [reflections]);
 
-      if (
-        filters.outcome &&
-        row.parsed.outcome.toLowerCase() !== filters.outcome.toLowerCase()
-      ) {
-        return false;
-      }
+  // 2. Build the Calendar Grid Data
+  const calendarDays = useMemo(() => {
+    const daysInMonth = getDaysInMonth(year, month);
+    const startDay = getFirstDayOfMonth(year, month); // 0 = Sun, 1 = Mon...
+    
+    // Adjust for Monday start if preferred, currently Sunday start standard
+    const padding = Array.from({ length: startDay }, () => null);
+    
+    const days = Array.from({ length: daysInMonth }, (_, i) => {
+      const dayNum = i + 1;
+      const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
+      const dayTrades = tradesByDay.get(dateStr) || [];
+      
+      // Calculate Stats for visual dots
+      let win = 0, loss = 0, be = 0;
+      dayTrades.forEach(t => {
+        const data = parseReflection(t);
+        if (data.outcome === "win") win++;
+        else if (data.outcome === "loss") loss++;
+        else if (data.outcome === "break_even") be++;
+      });
 
-      if (keyword) {
-        return buildKeywordHaystack(row).includes(keyword);
-      }
-
-      return true;
+      return {
+        dayNum,
+        dateStr,
+        trades: dayTrades,
+        stats: { win, loss, be }
+      };
     });
 
-    return result;
-  }, [filters, rows]);
+    return [...padding, ...days];
+  }, [year, month, tradesByDay]);
 
-  const pageCount = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
-  const clampedPage = Math.min(page, pageCount);
+  // 3. Stats for the Header
+  const monthStats = useMemo(() => {
+    let total = 0, wins = 0, losses = 0;
+    calendarDays.forEach(day => {
+      if (!day) return;
+      total += day.trades.length;
+      wins += day.stats.win;
+      losses += day.stats.loss;
+    });
+    const winRate = total > 0 ? Math.round((wins / (wins + losses || 1)) * 100) : 0;
+    return { total, wins, losses, winRate };
+  }, [calendarDays]);
 
-  useEffect(() => {
-    if (page !== clampedPage) {
-      setPage(clampedPage);
-    }
-  }, [clampedPage, page]);
+  // --- Handlers ---
 
-  const paginatedRows = useMemo(() => {
-    const start = (clampedPage - 1) * PAGE_SIZE;
-    return filteredRows.slice(start, start + PAGE_SIZE);
-  }, [clampedPage, filteredRows]);
-
-  const handleFilterChange = (field: keyof FiltersState) => {
-    return (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-      setFilters((prev) => ({
-        ...prev,
-        [field]: event.target.value
-      }));
-      setPage(1);
-    };
+  const changeMonth = (delta: number) => {
+    setCurrentDate(new Date(year, month + delta, 1));
+    setSelectedDay(null); // Close sidebar on month change
   };
 
+  const handleDayClick = (dateStr: string) => {
+    if (selectedDay === dateStr) setSelectedDay(null); // Toggle off
+    else setSelectedDay(dateStr);
+  };
+
+  // --- Render ---
+
   return (
-    <div className="reflection-list">
-      <header className="reflection-list__header">
-        <div>
-          <h2>Reflections</h2>
-          <p>Browse saved reflections and review outcomes.</p>
+    <div className="calendar-container">
+      {/* HEADER */}
+      <header className="calendar-header">
+        <div className="calendar-nav">
+          <button onClick={() => changeMonth(-1)}>&lt;</button>
+          <h2>{monthName} {year}</h2>
+          <button onClick={() => changeMonth(1)}>&gt;</button>
         </div>
-        <div className="reflection-list__filters">
-          <input
-            type="text"
-            placeholder="Search keywords"
-            value={filters.keyword}
-            onChange={handleFilterChange("keyword")}
-          />
-          <input
-            type="text"
-            placeholder="Instrument"
-            value={filters.instrument}
-            onChange={handleFilterChange("instrument")}
-          />
-          <select
-            value={filters.direction}
-            onChange={handleFilterChange("direction")}
-          >
-            <option value="">Direction</option>
-            <option value="long">Long</option>
-            <option value="short">Short</option>
-            <option value="neutral">Neutral</option>
-          </select>
-          <input
-            type="text"
-            placeholder="Outcome"
-            value={filters.outcome}
-            onChange={handleFilterChange("outcome")}
-          />
+        <div className="calendar-stats">
+          <div className="stat-pill">
+            <span className="label">TRADES</span>
+            <span className="value">{monthStats.total}</span>
+          </div>
+          <div className="stat-pill win">
+            <span className="label">WIN RATE</span>
+            <span className="value">{monthStats.winRate}%</span>
+          </div>
+          <div className="stat-pill">
+            <span className="label">P/L RATIO</span>
+            <span className="value">{monthStats.wins}:{monthStats.losses}</span>
+          </div>
         </div>
       </header>
 
-      {statusMessage ? (
-        <p className="reflection-list__status">{statusMessage}</p>
-      ) : null}
+      {/* GRID */}
+      <div className="calendar-grid">
+        {/* Weekday Headers */}
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
+          <div key={d} className="cal-day-header">{d}</div>
+        ))}
 
-      <div className="reflection-list__table">
-        <div className="reflection-list__row reflection-list__row--header">
-          <span>Preview</span>
-          <span>Instrument</span>
-          <span>Setup</span>
-          <span>Direction</span>
-          <span>Outcome</span>
-          <span>Updated</span>
-        </div>
-        {paginatedRows.length === 0 ? (
-          <div className="reflection-list__empty">No reflections found.</div>
-        ) : (
-          paginatedRows.map((row) => (
-            <button
-              key={row.reflection.id}
-              className="reflection-list__row"
-              type="button"
-              onClick={() => setSelected(row)}
+        {/* Days */}
+        {calendarDays.map((day, idx) => {
+          if (!day) return <div key={`empty-${idx}`} className="cal-day empty" />;
+
+          const isActive = selectedDay === day.dateStr;
+          const hasTrades = day.trades.length > 0;
+
+          return (
+            <div 
+              key={day.dateStr} 
+              className={`cal-day ${isActive ? "active" : ""} ${hasTrades ? "has-data" : ""}`}
+              onClick={() => handleDayClick(day.dateStr)}
             >
-              <span className="reflection-list__thumb" aria-hidden="true">
-                {row.parsed.instrument
-                  ? row.parsed.instrument.slice(0, 2).toUpperCase()
-                  : "--"}
-              </span>
-              <span>{row.parsed.instrument || "—"}</span>
-              <span>{row.parsed.setupName || row.reflection.title}</span>
-              <span>{row.parsed.direction || "—"}</span>
-              <span>{row.parsed.outcome || "—"}</span>
-              <span>
-                {new Date(row.reflection.updatedAt).toLocaleDateString()}
-              </span>
-            </button>
-          ))
-        )}
+              <div className="cal-day-num">{day.dayNum}</div>
+              
+              {/* Visual Dots */}
+              <div className="cal-dots">
+                {Array.from({ length: day.stats.win }).map((_, i) => (
+                  <span key={`w-${i}`} className="dot win" />
+                ))}
+                {Array.from({ length: day.stats.loss }).map((_, i) => (
+                  <span key={`l-${i}`} className="dot loss" />
+                ))}
+                {Array.from({ length: day.stats.be }).map((_, i) => (
+                  <span key={`b-${i}`} className="dot be" />
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      <footer className="reflection-list__pagination">
-        <button
-          type="button"
-          onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-          disabled={clampedPage === 1}
-        >
-          Prev
-        </button>
-        <span>
-          Page {clampedPage} of {pageCount}
-        </span>
-        <button
-          type="button"
-          onClick={() => setPage((prev) => Math.min(pageCount, prev + 1))}
-          disabled={clampedPage === pageCount}
-        >
-          Next
-        </button>
-      </footer>
+      {/* SIDEBAR (Day Summary) */}
+      <div className={`day-sidebar ${selectedDay ? "open" : ""}`}>
+        <div className="sidebar-header">
+          <h3>{selectedDay}</h3>
+          <button onClick={() => setSelectedDay(null)}>×</button>
+        </div>
+        
+        <div className="sidebar-content">
+          {selectedDay && tradesByDay.get(selectedDay)?.map((trade) => {
+            const data = parseReflection(trade);
+            const isWin = data.outcome === "win";
+            const isLoss = data.outcome === "loss";
+            
+            return (
+              <div 
+                key={trade.id} 
+                className={`trade-card ${isWin ? "win-border" : isLoss ? "loss-border" : ""}`}
+                onClick={() => setSelectedReflectionId(trade.id!)}
+              >
+                <div className="trade-card-header">
+                  <span className="symbol">{data.symbol || "Unknown"}</span>
+                  <span className={`badge ${data.outcome || "neutral"}`}>
+                    {data.outcome?.toUpperCase() || "N/A"}
+                  </span>
+                </div>
+                <div className="trade-card-body">
+                  <div className="row">
+                    <span>{data.direction?.toUpperCase()}</span>
+                    <span>Conf: {data.confidence}/10</span>
+                  </div>
+                  <div className="setup-name">{data.setupName || trade.title}</div>
+                </div>
+              </div>
+            );
+          })}
+          
+          {selectedDay && (!tradesByDay.get(selectedDay)?.length) && (
+            <div className="empty-state">No trades recorded for this day.</div>
+          )}
+        </div>
+      </div>
 
-      {selected ? (
-        <aside className="reflection-list__detail">
-          <header>
-            <h3>{selected.parsed.setupName || selected.reflection.title}</h3>
-            <p>
-              {selected.parsed.instrument} · {selected.parsed.timeframe} ·{" "}
-              {selected.parsed.direction}
-            </p>
-          </header>
-          <div className="reflection-list__detail-grid">
-            <div>
-              <span>Outcome</span>
-              <strong>{selected.parsed.outcome || "—"}</strong>
-            </div>
-            <div>
-              <span>Confidence</span>
-              <strong>{selected.parsed.confidence || "—"}</strong>
-            </div>
-            <div>
-              <span>Prices</span>
-              <strong>{selected.parsed.prices || "—"}</strong>
-            </div>
-            <div>
-              <span>Tags</span>
-              <strong>{selected.reflection.tags?.join(", ") || "—"}</strong>
-            </div>
+      {/* MODAL (Full Details) */}
+      {selectedReflectionId && (
+        <div className="modal-overlay" onClick={() => setSelectedReflectionId(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <ReflectionDetail 
+              id={selectedReflectionId} 
+              onClose={() => setSelectedReflectionId(null)} 
+            />
           </div>
-          <section>
-            <h4>Reflection answers</h4>
-            {Object.keys(selected.parsed.questions).length === 0 ? (
-              <p>No answers captured.</p>
-            ) : (
-              <ul>
-                {Object.entries(selected.parsed.questions).map(
-                  ([key, value]) => (
-                    <li key={key}>
-                      <strong>{key}:</strong> {value || "—"}
-                    </li>
-                  )
-                )}
-              </ul>
-            )}
-          </section>
-          <button
-            type="button"
-            className="reflection-list__detail-close"
-            onClick={() => setSelected(null)}
-          >
-            Close
-          </button>
-        </aside>
-      ) : null}
+        </div>
+      )}
     </div>
   );
 };
