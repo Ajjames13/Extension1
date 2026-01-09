@@ -1,45 +1,39 @@
-.export-data {
-  display: grid;
-  gap: 12px;
-  padding: 20px;
-  border-radius: 16px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  color: var(--text-main);
-}
-
-.export-data header h3 {
-  margin: 0 0 4px;
-  color: var(--text-main);
-}
-
-.export-data header p {
-  margin: 0;
-  color: var(--text-muted);
-}
-
-.export-data__actions {
+.export-container {
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+  justify-content: center;
+  padding: 40px 20px;
+  background-color: var(--bg-body);
+  height: 100%;
 }
 
-.export-data__actions button {
-  border: none;
-  background: var(--accent-primary);
-  color: #ffffff;
-  padding: 8px 14px;
-  border-radius: 10px;
-  cursor: pointer;
+.export-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 32px;
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  height: fit-content;
 }
 
-.export-data__actions button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.export-card h3 {
+  color: var(--text-main);
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 20px;
 }
 
-.export-data__status {
-  margin: 0;
+.export-card p {
   color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+
+.export-card .btn-primary {
+  width: 100%;
+  justify-content: center;
+  padding: 12px;
 }

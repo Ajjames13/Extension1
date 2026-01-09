@@ -1,166 +1,71 @@
-import { db, Image, Reflection, Setting } from "./db";
+import { db, Reflection } from "./db";
 
-type NewReflection = {
+// Helper interface for creation payload
+interface CreatePayload {
   title: string;
   body: string;
-  tags?: string[];
-  images?: Array<Pick<Image, "name" | "dataUrl">>;
-};
+  tags: string[];
+  images?: Array<{ name: string; dataUrl: string }>;
+}
 
-type ReflectionFilters = {
-  query?: string;
-  tag?: string;
-  startDate?: string;
-  endDate?: string;
-  limit?: number;
-};
+export const createReflection = async (data: CreatePayload) => {
+  const now = new Date().toISOString();
+  
+  // 1. Create the Reflection entry
+  const id = await db.reflections.add({
+    title: data.title,
+    body: data.body,
+    tags: data.tags,
+    createdAt: now,
+    updatedAt: now,
+  } as Reflection);
 
-export type ReflectionWithImages = {
-  reflection: Reflection;
-  images: Image[];
-};
-
-const nowIso = () => new Date().toISOString();
-
-export const createReflection = async (
-  input: NewReflection
-): Promise<ReflectionWithImages> => {
-  const timestamp = nowIso();
-
-  return db.transaction("rw", db.reflections, db.images, async () => {
-    const reflectionId = await db.reflections.add({
-      title: input.title,
-      body: input.body,
-      tags: input.tags,
-      createdAt: timestamp,
-      updatedAt: timestamp
-    });
-
-    const images: Image[] = [];
-    if (input.images?.length) {
-      const payload = input.images.map((image) => ({
-        reflectionId,
-        name: image.name,
-        dataUrl: image.dataUrl,
-        createdAt: timestamp
-      }));
-
-      const ids = await db.images.bulkAdd(payload, { allKeys: true });
-      ids.forEach((id, index) => {
-        images.push({
-          id: id as number,
-          ...payload[index]
-        });
-      });
+  // 2. Handle Images (if provided and images table exists)
+  if (data.images && data.images.length > 0) {
+    try {
+      const imageTable = db.table("images");
+      if (imageTable) {
+        await Promise.all(
+          data.images.map((img) =>
+            imageTable.add({
+              reflectionId: id,
+              name: img.name,
+              dataUrl: img.dataUrl,
+            })
+          )
+        );
+      }
+    } catch (e) {
+      console.error("Failed to save images", e);
     }
-
-    const reflection: Reflection = {
-      id: reflectionId,
-      title: input.title,
-      body: input.body,
-      tags: input.tags,
-      createdAt: timestamp,
-      updatedAt: timestamp
-    };
-
-    return { reflection, images };
-  });
-};
-
-export const updateReflection = async (
-  id: number,
-  updates: Partial<Pick<Reflection, "title" | "body" | "tags">>
-): Promise<Reflection | null> => {
-  const existing = await db.reflections.get(id);
-  if (!existing) {
-    return null;
   }
 
-  const updatedAt = nowIso();
-  const nextReflection = {
-    ...existing,
-    ...updates,
-    updatedAt
-  };
+  return id;
+};
 
+export const updateReflection = async (id: number, updates: Partial<Reflection>) => {
   await db.reflections.update(id, {
-    title: nextReflection.title,
-    body: nextReflection.body,
-    tags: nextReflection.tags,
-    updatedAt
+    ...updates,
+    updatedAt: new Date().toISOString(),
   });
+};
 
-  return nextReflection;
+export const listReflections = async (): Promise<Reflection[]> => {
+  return await db.reflections.orderBy("id").reverse().toArray();
 };
 
 export const deleteReflection = async (id: number): Promise<void> => {
-  await db.transaction("rw", db.reflections, db.images, async () => {
-    await db.images.where("reflectionId").equals(id).delete();
+  await db.transaction("rw", db.reflections, db.table("images"), async () => {
     await db.reflections.delete(id);
+    // Try to delete associated images if table exists
+    try {
+      await db.table("images").where({ reflectionId: id }).delete();
+    } catch (e) {
+      // Ignore if image table issues
+    }
   });
 };
 
-export const getReflection = async (
-  id: number
-): Promise<ReflectionWithImages | null> => {
-  const reflection = await db.reflections.get(id);
-  if (!reflection) {
-    return null;
-  }
-
-  const images = await db.images.where("reflectionId").equals(id).toArray();
-  return { reflection, images };
-};
-
-export const listReflections = async (
-  filters: ReflectionFilters = {}
-): Promise<Reflection[]> => {
-  const reflections = await db.reflections.orderBy("createdAt").reverse().toArray();
-
-  let result = reflections;
-
-  if (filters.query) {
-    const query = filters.query.toLowerCase();
-    result = result.filter((reflection) =>
-      `${reflection.title} ${reflection.body}`.toLowerCase().includes(query)
-    );
-  }
-
-  if (filters.tag) {
-    result = result.filter((reflection) =>
-      reflection.tags?.includes(filters.tag as string)
-    );
-  }
-
-  if (filters.startDate) {
-    result = result.filter(
-      (reflection) => reflection.createdAt >= filters.startDate
-    );
-  }
-
-  if (filters.endDate) {
-    result = result.filter(
-      (reflection) => reflection.createdAt <= filters.endDate
-    );
-  }
-
-  if (filters.limit) {
-    result = result.slice(0, filters.limit);
-  }
-
-  return result;
-};
-
-export const exportAllData = async (): Promise<{
-  reflections: Reflection[];
-  images: Image[];
-  settings: Setting[];
-}> => {
-  const [reflections, images, settings] = await Promise.all([
-    db.reflections.toArray(),
-    db.images.toArray(),
-    db.settings.toArray()
-  ]);
-
-  return { reflections, images, settings };
+export const getReflection = async (id: number): Promise<Reflection | undefined> => {
+  return await db.reflections.get(id);
 };

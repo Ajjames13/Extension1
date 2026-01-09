@@ -1,454 +1,316 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   deleteReflection,
   getReflection,
-  updateReflection
+  updateReflection // Now correctly exported
 } from "../../storage/reflectionStore";
-import type { Image, Reflection } from "../../storage/db";
+import type { Reflection } from "../../storage/db";
+import { FUTURES_INFO } from "../../shared/futuresinfo";
+import { ChecklistSnapshot } from "../ChecklistSnapshot/ChecklistSnapshot";
 import "./ReflectionDetail.css";
 
-type ReflectionPayload = {
-  instrument: string;
-  timeframe: string;
-  direction: string;
-  entryPrice: string;
-  exitPrice: string;
-  quantity: string;
-  prices: string;
-  setupName: string;
-  outcome: string;
-  pnl: string;
-  confidence: string;
-  tags: string[];
-  notes: string;
-  questions: Record<string, string>;
-};
+interface ReflectionDetailProps {
+  id: number;
+  onClose: () => void;
+  onDelete: () => void;
+}
 
-const defaultPayload: ReflectionPayload = {
-  instrument: "",
-  timeframe: "",
-  direction: "",
-  entryPrice: "",
-  exitPrice: "",
-  quantity: "",
-  prices: "",
-  setupName: "",
-  outcome: "",
-  pnl: "",
-  confidence: "",
-  tags: [],
-  notes: "",
-  questions: {}
-};
-
-const normalizeTags = (tags: ReflectionPayload["tags"] | string): string[] => {
-  if (Array.isArray(tags)) {
-    return tags;
-  }
-
-  if (typeof tags === "string") {
-    return tags
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter(Boolean);
-  }
-
-  return [];
-};
-
-const parseBody = (body: string): ReflectionPayload => {
+// Helper to safely parse the JSON body
+const parseBody = (bodyStr: string) => {
   try {
-    const parsed = JSON.parse(body) as Partial<ReflectionPayload>;
-    return {
-      instrument: parsed.instrument ?? "",
-      timeframe: parsed.timeframe ?? "",
-      direction: parsed.direction ?? "",
-      entryPrice: parsed.entryPrice ?? "",
-      exitPrice: parsed.exitPrice ?? "",
-      quantity: parsed.quantity ?? "",
-      prices: parsed.prices ?? "",
-      setupName: parsed.setupName ?? "",
-      outcome: parsed.outcome ?? "",
-      pnl: parsed.pnl ?? "",
-      confidence: parsed.confidence ?? "",
-      tags: parsed.tags ? normalizeTags(parsed.tags) : [],
-      notes: parsed.notes ?? "",
-      questions: parsed.questions ?? {}
-    };
+    return JSON.parse(bodyStr);
   } catch {
-    return { ...defaultPayload };
+    return {};
   }
 };
 
-const serializeBody = (payload: ReflectionPayload) =>
-  JSON.stringify(
-    {
-      instrument: payload.instrument,
-      timeframe: payload.timeframe,
-      direction: payload.direction,
-      entryPrice: payload.entryPrice,
-      exitPrice: payload.exitPrice,
-      quantity: payload.quantity,
-      prices: payload.prices,
-      setupName: payload.setupName,
-      outcome: payload.outcome,
-      pnl: payload.pnl,
-      confidence: payload.confidence,
-      tags: payload.tags,
-      notes: payload.notes,
-      questions: payload.questions
-    },
-    null,
-    2
-  );
-
-export type ReflectionDetailProps = {
-  reflectionId: number;
-};
-
-export const ReflectionDetail = ({ reflectionId }: ReflectionDetailProps) => {
+export const ReflectionDetail: React.FC<ReflectionDetailProps> = ({
+  id,
+  onClose,
+  onDelete,
+}) => {
   const [reflection, setReflection] = useState<Reflection | null>(null);
-  const [images, setImages] = useState<Image[]>([]);
-  const [draft, setDraft] = useState<ReflectionPayload | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const loadReflection = useCallback(async () => {
-    setStatusMessage(null);
-    try {
-      const result = await getReflection(reflectionId);
-      if (!result) {
-        setStatusMessage("Reflection not found.");
-        setReflection(null);
-        setImages([]);
-        setDraft(null);
-        return;
-      }
+  // --- Editable State ---
+  const [formData, setFormData] = useState({
+    instrument: "",
+    timeframe: "",
+    direction: "Long",
+    setupName: "",
+    entryPrice: "",
+    exitPrice: "",
+    quantity: "1",
+    prices: "", // Planned prices text
+    outcome: "Win",
+    pnl: "",
+    confidence: "3",
+    tags: "",
+    questions: {} as Record<string, string>,
+    checklist: [] as any[],
+  });
 
-      setReflection(result.reflection);
-      setImages(result.images);
-      const parsed = parseBody(result.reflection.body);
-      setDraft({
-        ...parsed,
-        tags: result.reflection.tags ?? parsed.tags
-      });
-    } catch {
-      setStatusMessage("Unable to load reflection.");
-    }
-  }, [reflectionId]);
-
+  // Load Data
   useEffect(() => {
-    loadReflection();
-  }, [loadReflection]);
-
-  const questionEntries = useMemo(() => {
-    return Object.entries(draft?.questions ?? {});
-  }, [draft]);
-
-  const handleFieldChange = (field: keyof ReflectionPayload) => {
-    return (
-      event:
-        | React.ChangeEvent<HTMLInputElement>
-        | React.ChangeEvent<HTMLSelectElement>
-        | React.ChangeEvent<HTMLTextAreaElement>
-    ) => {
-      if (!draft) {
-        return;
+    let mounted = true;
+    getReflection(id).then((data) => {
+      if (mounted && data) {
+        setReflection(data);
+        const parsed = parseBody(data.body);
+        
+        // Populate form data from parsed body, with fallbacks
+        setFormData({
+          instrument: parsed.instrument || "",
+          timeframe: parsed.timeframe || "",
+          direction: parsed.direction || "Long",
+          setupName: parsed.setupName || data.title,
+          entryPrice: parsed.entryPrice || "",
+          exitPrice: parsed.exitPrice || "",
+          quantity: parsed.quantity || "1",
+          prices: parsed.prices || "",
+          outcome: parsed.outcome || "Win",
+          pnl: parsed.pnl || "",
+          confidence: parsed.confidence || "3",
+          tags: parsed.tags || (data.tags || []).join(", "),
+          questions: parsed.questions || {},
+          checklist: parsed.checklist || [],
+        });
+        setIsLoading(false);
       }
-      setDraft({
-        ...draft,
-        [field]: event.target.value
-      });
-    };
-  };
-
-  const handleTagChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!draft) {
-      return;
-    }
-    const value = event.target.value;
-    setDraft({
-      ...draft,
-      tags: value
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean)
     });
-  };
+    return () => { mounted = false; };
+  }, [id]);
 
-  const handleQuestionChange = (key: string) => {
-    return (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      if (!draft) {
-        return;
-      }
-      setDraft({
-        ...draft,
-        questions: {
-          ...draft.questions,
-          [key]: event.target.value
-        }
-      });
-    };
-  };
+  // PnL Auto-Calc Logic (Only active during Edit)
+  useEffect(() => {
+    if (!isEditing) return; 
 
-  const handleSave = async () => {
-    if (!reflection || !draft) {
-      return;
+    const symbolKey = formData.instrument.trim().toUpperCase();
+    const info = FUTURES_INFO[symbolKey];
+
+    const entry = parseFloat(formData.entryPrice);
+    const exit = parseFloat(formData.exitPrice);
+    const qty = parseFloat(formData.quantity);
+
+    if (info && !isNaN(entry) && !isNaN(exit) && !isNaN(qty) && qty > 0) {
+       let diff = 0;
+       if (formData.direction === "Long") diff = exit - entry;
+       else if (formData.direction === "Short") diff = entry - exit;
+
+       const ticks = diff / info.tickSize;
+       const totalPnl = ticks * info.tickValue * qty;
+       
+       if (!isNaN(totalPnl)) {
+         setFormData(prev => ({ ...prev, pnl: totalPnl.toFixed(2) }));
+       }
     }
-    setIsSaving(true);
-    setStatusMessage(null);
-    try {
-      const updated = await updateReflection(reflection.id as number, {
-        title: draft.setupName || reflection.title,
-        body: serializeBody(draft),
-        tags: draft.tags
-      });
+  }, [formData.entryPrice, formData.exitPrice, formData.quantity, formData.direction, formData.instrument, isEditing]);
 
-      if (updated) {
-        setReflection(updated);
-        setIsEditing(false);
-        setStatusMessage("Reflection updated.");
-      } else {
-        setStatusMessage("Unable to update reflection.");
-      }
-    } catch {
-      setStatusMessage("Unable to update reflection.");
-    } finally {
-      setIsSaving(false);
+
+  // Handlers
+  const handleSave = async () => {
+    if (!reflection) return;
+
+    // Reconstruct the body JSON preserving existing extra fields
+    const currentBody = parseBody(reflection.body);
+    const updatedBody = JSON.stringify({
+      ...currentBody,
+      instrument: formData.instrument,
+      timeframe: formData.timeframe,
+      direction: formData.direction,
+      entryPrice: formData.entryPrice,
+      exitPrice: formData.exitPrice,
+      quantity: formData.quantity,
+      prices: formData.prices,
+      setupName: formData.setupName,
+      outcome: formData.outcome,
+      pnl: formData.pnl,
+      confidence: formData.confidence,
+      tags: formData.tags,
+      questions: formData.questions,
+      // Checklist remains as is
+      checklist: formData.checklist, 
+    });
+
+    const updatedTags = formData.tags.split(",").map(t => t.trim()).filter(Boolean);
+
+    await updateReflection(id, {
+      title: formData.setupName,
+      body: updatedBody,
+      tags: updatedTags,
+    });
+
+    setIsEditing(false);
+    
+    // Refresh local state
+    const fresh = await getReflection(id);
+    if(fresh) {
+        setReflection(fresh);
     }
   };
 
   const handleDelete = async () => {
-    if (!reflection) {
-      return;
-    }
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this reflection?"
-    );
-    if (!confirmed) {
-      return;
-    }
-    setIsDeleting(true);
-    setStatusMessage(null);
-    try {
-      await deleteReflection(reflection.id as number);
-      setReflection(null);
-      setDraft(null);
-      setImages([]);
-      setStatusMessage("Reflection deleted.");
-    } catch {
-      setStatusMessage("Unable to delete reflection.");
-    } finally {
-      setIsDeleting(false);
+    // eslint-disable-next-line no-restricted-globals
+    if (confirm("Delete this reflection permanently?")) {
+      await deleteReflection(id);
+      onDelete();
     }
   };
 
-  if (!reflection || !draft) {
-    return (
-      <section className="reflection-detail">
-        <h2>Reflection Detail</h2>
-        <p>{statusMessage ?? "Loading reflection..."}</p>
-      </section>
-    );
-  }
+  const handleChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  if (isLoading || !reflection) return <div className="detail-loading">Loading...</div>;
 
   return (
-    <section className="reflection-detail">
-      <header className="reflection-detail__header">
-        <div>
-          <h2>{draft.setupName || reflection.title || "Reflection"}</h2>
-          <p>
-            {draft.instrument} · {draft.timeframe} · {draft.direction}
-          </p>
-        </div>
-        <div className="reflection-detail__actions">
-          <button type="button" onClick={() => setIsEditing((prev) => !prev)}>
-            {isEditing ? "Cancel edit" : "Edit"}
-          </button>
-          <button type="button" onClick={handleDelete} disabled={isDeleting}>
-            {isDeleting ? "Deleting..." : "Delete"}
-          </button>
-        </div>
-      </header>
-
-      {statusMessage ? (
-        <p className="reflection-detail__status">{statusMessage}</p>
-      ) : null}
-
-      <div className="reflection-detail__grid">
-        <label>
-          Setup name
-          <input
-            type="text"
-            value={draft.setupName}
-            onChange={handleFieldChange("setupName")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          Instrument
-          <input
-            type="text"
-            value={draft.instrument}
-            onChange={handleFieldChange("instrument")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          Timeframe
-          <input
-            type="text"
-            value={draft.timeframe}
-            onChange={handleFieldChange("timeframe")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          Direction
-          <select
-            value={draft.direction}
-            onChange={handleFieldChange("direction")}
-            disabled={!isEditing}
-          >
-            <option value="">Select</option>
-            <option value="long">Long</option>
-            <option value="short">Short</option>
-            <option value="neutral">Neutral</option>
-          </select>
-        </label>
-        <label>
-          Quantity
-          <input
-            type="number"
-            step="any"
-            value={draft.quantity}
-            onChange={handleFieldChange("quantity")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          Entry Price
-          <input
-            type="number"
-            step="any"
-            value={draft.entryPrice}
-            onChange={handleFieldChange("entryPrice")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          Exit Price
-          <input
-            type="number"
-            step="any"
-            value={draft.exitPrice}
-            onChange={handleFieldChange("exitPrice")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          Planned Prices
-          <input
-            type="text"
-            value={draft.prices}
-            onChange={handleFieldChange("prices")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          Outcome
-          <input
-            type="text"
-            value={draft.outcome}
-            onChange={handleFieldChange("outcome")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          PnL ($)
-          <input
-            type="text"
-            value={draft.pnl}
-            onChange={handleFieldChange("pnl")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          Confidence
-          <input
-            type="text"
-            value={draft.confidence}
-            onChange={handleFieldChange("confidence")}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          Tags
-          <input
-            type="text"
-            value={draft.tags.join(", ")}
-            onChange={handleTagChange}
-            disabled={!isEditing}
-          />
-        </label>
-      </div>
-
-      <section className="reflection-detail__notes">
-        <label>
-          Notes
-          <textarea
-            value={draft.notes}
-            onChange={handleFieldChange("notes")}
-            rows={4}
-            disabled={!isEditing}
-          />
-        </label>
-      </section>
-
-      <section className="reflection-detail__questions">
-        <h3>Reflection answers</h3>
-        {questionEntries.length === 0 ? (
-          <p>No answers captured.</p>
-        ) : (
-          questionEntries.map(([key, value]) => (
-            <label key={key}>
-              {key}
-              <textarea
-                value={value}
-                onChange={handleQuestionChange(key)}
-                rows={3}
-                disabled={!isEditing}
+    <div className="reflection-detail-overlay">
+      <div className="reflection-detail-modal">
+        
+        {/* Header */}
+        <div className="modal-header">
+          <div className="header-left">
+            {isEditing ? (
+              <input 
+                className="edit-title-input"
+                value={formData.setupName}
+                onChange={(e) => handleChange("setupName", e.target.value)}
               />
-            </label>
-          ))
-        )}
-      </section>
-
-      <section className="reflection-detail__gallery">
-        <h3>Images</h3>
-        {images.length === 0 ? (
-          <p>No images uploaded.</p>
-        ) : (
-          <div className="reflection-detail__images">
-            {images.map((image) => (
-              <figure key={image.id}>
-                <img src={image.dataUrl} alt={image.name} />
-                <figcaption>{image.name}</figcaption>
-              </figure>
-            ))}
+            ) : (
+              <h2>{reflection.title}</h2>
+            )}
+            <span className="date-badge">
+              {new Date(reflection.createdAt).toLocaleDateString()}
+            </span>
           </div>
-        )}
-      </section>
+          <div className="header-actions">
+            {!isEditing ? (
+              <>
+                <button className="btn-icon" onClick={() => setIsEditing(true)}>✎ Edit</button>
+                <button className="btn-icon text-danger" onClick={handleDelete}>🗑</button>
+                <button className="btn-close" onClick={onClose}>×</button>
+              </>
+            ) : (
+              <>
+                <button className="btn-secondary" onClick={() => setIsEditing(false)}>Cancel</button>
+                <button className="btn-primary" onClick={handleSave}>Save Changes</button>
+              </>
+            )}
+          </div>
+        </div>
 
-      {isEditing ? (
-        <footer className="reflection-detail__footer">
-          <button type="button" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save updates"}
-          </button>
-        </footer>
-      ) : null}
-    </section>
+        <div className="modal-scroll-area">
+          {/* Main Grid */}
+          <div className="detail-grid">
+            <div className="grid-item">
+              <label>Instrument</label>
+              {isEditing ? (
+                 <select value={formData.instrument} onChange={(e) => handleChange("instrument", e.target.value)}>
+                   {Object.keys(FUTURES_INFO).map(s => <option key={s} value={s}>{s}</option>)}
+                   <option value="Custom">Custom</option>
+                 </select>
+              ) : (
+                <div className="value">{formData.instrument}</div>
+              )}
+            </div>
+
+            <div className="grid-item">
+              <label>Direction</label>
+              {isEditing ? (
+                <select value={formData.direction} onChange={(e) => handleChange("direction", e.target.value)}>
+                  <option>Long</option>
+                  <option>Short</option>
+                </select>
+              ) : (
+                <div className={`value ${formData.direction.toLowerCase()}`}>{formData.direction}</div>
+              )}
+            </div>
+
+            <div className="grid-item">
+              <label>Timeframe</label>
+              {isEditing ? (
+                <input value={formData.timeframe} onChange={(e) => handleChange("timeframe", e.target.value)} />
+              ) : (
+                <div className="value">{formData.timeframe}</div>
+              )}
+            </div>
+
+            <div className="grid-item">
+              <label>Entry</label>
+              {isEditing ? (
+                <input type="number" value={formData.entryPrice} onChange={(e) => handleChange("entryPrice", e.target.value)} />
+              ) : (
+                <div className="value">{formData.entryPrice}</div>
+              )}
+            </div>
+
+            <div className="grid-item">
+              <label>Exit</label>
+              {isEditing ? (
+                <input type="number" value={formData.exitPrice} onChange={(e) => handleChange("exitPrice", e.target.value)} />
+              ) : (
+                <div className="value">{formData.exitPrice}</div>
+              )}
+            </div>
+
+            <div className="grid-item">
+              <label>PnL</label>
+              {isEditing ? (
+                <input value={formData.pnl} readOnly className="pnl-input-readonly" />
+              ) : (
+                <div className={`value pnl ${parseFloat(formData.pnl) >= 0 ? "positive" : "negative"}`}>
+                  {formData.pnl ? `$${formData.pnl}` : "-"}
+                </div>
+              )}
+            </div>
+            
+            <div className="grid-item full">
+              <label>Outcome</label>
+              {isEditing ? (
+                <select value={formData.outcome} onChange={(e) => handleChange("outcome", e.target.value)}>
+                  <option>Win</option>
+                  <option>Loss</option>
+                  <option>BreakEven</option>
+                  <option>Missed</option>
+                </select>
+              ) : (
+                <div className="value">{formData.outcome}</div>
+              )}
+            </div>
+          </div>
+
+          {/* Checklist Snapshot (Read Only) */}
+          {formData.checklist && formData.checklist.length > 0 && (
+            <div className="detail-section">
+              <h3>Execution Checklist</h3>
+              <ChecklistSnapshot items={formData.checklist} readonly={true} />
+            </div>
+          )}
+
+          {/* Questions */}
+          <div className="detail-section">
+             <h3>Analysis</h3>
+             {Object.entries(formData.questions).map(([key, answer]) => (
+               <div key={key} className="qa-block">
+                 <div className="question-label">{key}</div> 
+                 {isEditing ? (
+                   <textarea 
+                     value={answer as string} 
+                     onChange={(e) => setFormData(prev => ({
+                       ...prev,
+                       questions: { ...prev.questions, [key]: e.target.value }
+                     }))}
+                   />
+                 ) : (
+                   <div className="answer-text">{answer as string || "No answer provided."}</div>
+                 )}
+               </div>
+             ))}
+          </div>
+          
+        </div>
+      </div>
+    </div>
   );
 };

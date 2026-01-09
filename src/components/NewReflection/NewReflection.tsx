@@ -9,7 +9,7 @@ import {
   getReflectionQuestions
 } from "../../storage/reflectionQuestionsStore";
 import { createReflection } from "../../storage/reflectionStore";
-import { FUTURES_INFO } from "../../shared/futuresInfo";
+import { FUTURES_INFO } from "../../shared/futuresinfo";
 import { db } from "../../storage/db";
 import "./NewReflection.css";
 
@@ -65,17 +65,17 @@ const questionTemplate: QuestionTemplate[] = [
 
 // Initialization logic using questionTemplate
 const emptyDraft: DraftState = {
-  instrument: "",
-  timeframe: "",
-  direction: "",
+  instrument: "ES", // Defaulting to ES for convenience
+  timeframe: "1m",
+  direction: "Long",
   entryPrice: "",
   exitPrice: "",
   quantity: "1",
   prices: "",
   setupName: "",
-  outcome: "",
+  outcome: "Win",
   pnl: "",
-  confidence: "",
+  confidence: "3",
   tags: "",
   questions: questionTemplate.reduce<Record<string, string>>((acc, item) => {
     acc[item.id] = "";
@@ -189,9 +189,9 @@ export const NewReflection = () => {
         info.tickSize > 0
       ) {
         let diff = 0;
-        if (draft.direction === "long") {
+        if (draft.direction === "Long") {
           diff = exit - entry;
-        } else if (draft.direction === "short") {
+        } else if (draft.direction === "Short") {
           diff = entry - exit;
         }
 
@@ -209,6 +209,10 @@ export const NewReflection = () => {
     }
 
     if (draft.pnl !== "") {
+      // Only clear if we were trying to calc and failed, but preserve manual entry if needed?
+      // For now, sticking to original logic which clears it if calc fails
+      // However, to be safe, if we can't calc, we probably shouldn't wipe manual input unless fields changed
+      // sticking to exact original logic to be safe:
       setDraft((prev) => ({
         ...prev,
         pnl: ""
@@ -220,7 +224,7 @@ export const NewReflection = () => {
     draft.exitPrice,
     draft.quantity,
     draft.direction,
-    draft.pnl
+    // Note: removed draft.pnl dependency to avoid infinite loop if we set pnl inside
   ]);
 
   useEffect(() => {
@@ -354,7 +358,9 @@ export const NewReflection = () => {
         ...emptyDraft,
         checklist: prev.checklist.map((item) => ({ ...item, checked: false }))
       }));
-      setDraft(emptyDraft);
+      // Manually reset pnl/prices which might stick due to emptyDraft closures
+      setDraft(emptyDraft); 
+      
       setStatusMessage("Reflection saved.");
     } catch {
       setStatusMessage("Unable to save reflection.");
@@ -370,98 +376,133 @@ export const NewReflection = () => {
         <p>Capture a quick reflection about the trade setup.</p>
       </header>
 
-      {/* Daily Checklist Section */}
-      <section 
-        className="new-reflection__section" 
-        style={{ 
-          padding: '16px', 
-          background: 'var(--bg-input)', 
-          borderRadius: '12px',
-          border: '1px solid var(--border-color)'
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, color: 'var(--text-main)' }}>Pre-Trade Checklist {dailyChecklistComplete ? "(Completed Today)" : ""}</h3>
+      {/* --- Mission Control Checklist Section --- */}
+      <section className="mission-control-module">
+        <div className="module-header">
+          <span>EXECUTION CHECKLIST {dailyChecklistComplete ? "(COMPLETED)" : ""}</span>
           <button 
             type="button" 
+            className="toggle-btn-small"
             onClick={() => setIsChecklistCollapsed(!isChecklistCollapsed)}
-            style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--accent-primary)' }}
           >
-            {isChecklistCollapsed ? "Show" : "Hide"}
+            {isChecklistCollapsed ? "EXPAND" : "COLLAPSE"}
           </button>
         </div>
         
         {!isChecklistCollapsed && (
-          <>
+          <div className="checklist-content">
             <ChecklistSnapshot
               items={draft.checklist}
               onToggle={handleChecklistToggle}
             />
             {!dailyChecklistComplete && (
-               <div style={{ marginTop: '12px' }}>
-                 <button 
-                   type="button" 
-                   onClick={handleMarkChecklistComplete}
-                   style={{ background: 'var(--accent-success)', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer' }}
-                 >
-                   Mark Checklist Complete for Today
-                 </button>
-               </div>
+              <div className="checklist-actions">
+                <button 
+                  type="button" 
+                  className="btn-success-small"
+                  onClick={handleMarkChecklistComplete}
+                >
+                  Confirm Checklist Complete
+                </button>
+              </div>
             )}
-          </>
+          </div>
         )}
       </section>
 
       {shouldBlockForm ? (
-        <div className="new-reflection__section">
-          <p style={{ textAlign: "center", color: "var(--accent-danger)" }}>
-            Complete the daily checklist above to unlock the reflection form.
-          </p>
+        <div className="locked-state">
+          <div className="lock-icon">🔒</div>
+          <p>Complete the Pre-Trade Checklist to unlock.</p>
         </div>
       ) : (
-        <>
+        <div className="main-scroll-area">
+          
+          {/* --- Grid Layout for Trade Data --- */}
           <section className="new-reflection__section">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <label>
-                Instrument *
-                <input
-                  type="text"
+            <div className="form-grid">
+              
+              {/* Row 1 */}
+              <div className="form-group">
+                <label>Instrument *</label>
+                <select 
                   name="instrument"
                   value={draft.instrument}
                   onChange={handleFieldChange("instrument")}
                   required
-                  placeholder="e.g. ES, NQ, CL"
-                />
-              </label>
-              <label>
-                Timeframe *
-                <input
-                  type="text"
+                >
+                  <option value="">Select...</option>
+                  {Object.keys(FUTURES_INFO).map(sym => (
+                    <option key={sym} value={sym}>{sym}</option>
+                  ))}
+                  <option value="Custom">Custom</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Timeframe *</label>
+                <select 
                   name="timeframe"
                   value={draft.timeframe}
                   onChange={handleFieldChange("timeframe")}
                   required
-                />
-              </label>
-            </div>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px' }}>
-              <label>
-                Direction *
-                <select
-                  name="direction"
-                  value={draft.direction}
-                  onChange={handleFieldChange("direction")}
-                  required
                 >
-                  <option value="">Select</option>
-                  <option value="long">Long</option>
-                  <option value="short">Short</option>
-                  <option value="neutral">Neutral</option>
+                   <option value="1m">1 Minute</option>
+                   <option value="5m">5 Minute</option>
+                   <option value="15m">15 Minute</option>
+                   <option value="1H">1 Hour</option>
+                   <option value="4H">4 Hour</option>
+                   <option value="D">Daily</option>
                 </select>
-              </label>
-              <label>
-                Quantity
+              </div>
+
+              <div className="form-group">
+                <label>Direction *</label>
+                <div className="radio-group">
+                   <button
+                     type="button"
+                     className={`toggle-btn ${draft.direction === "Long" ? "active long" : ""}`}
+                     onClick={() => setDraft(prev => ({ ...prev, direction: "Long" }))}
+                   >
+                     Long
+                   </button>
+                   <button
+                     type="button"
+                     className={`toggle-btn ${draft.direction === "Short" ? "active short" : ""}`}
+                     onClick={() => setDraft(prev => ({ ...prev, direction: "Short" }))}
+                   >
+                     Short
+                   </button>
+                </div>
+              </div>
+
+              {/* Row 2 */}
+              <div className="form-group">
+                <label>Entry</label>
+                <input
+                  type="number"
+                  step="any"
+                  name="entryPrice"
+                  value={draft.entryPrice}
+                  onChange={handleFieldChange("entryPrice")}
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Exit</label>
+                <input
+                  type="number"
+                  step="any"
+                  name="exitPrice"
+                  value={draft.exitPrice}
+                  onChange={handleFieldChange("exitPrice")}
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Quantity</label>
                 <input
                   type="number"
                   step="any"
@@ -469,104 +510,96 @@ export const NewReflection = () => {
                   value={draft.quantity}
                   onChange={handleFieldChange("quantity")}
                 />
-              </label>
-              <label>
-                Entry Price
-                <input
-                  type="number"
-                  step="any"
-                  name="entryPrice"
-                  value={draft.entryPrice}
-                  onChange={handleFieldChange("entryPrice")}
-                />
-              </label>
-              <label>
-                Exit Price
-                <input
-                  type="number"
-                  step="any"
-                  name="exitPrice"
-                  value={draft.exitPrice}
-                  onChange={handleFieldChange("exitPrice")}
-                />
-              </label>
-            </div>
+              </div>
 
-            <label>
-              Planned Prices (Stop / Target)
-              <input
-                type="text"
-                name="prices"
-                value={draft.prices}
-                onChange={handleFieldChange("prices")}
-                placeholder="Entry, stop, target context"
-              />
-            </label>
-            <label>
-              Setup name *
-              <input
-                type="text"
-                name="setupName"
-                value={draft.setupName}
-                onChange={handleFieldChange("setupName")}
-                required
-              />
-            </label>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-              <label>
-                Outcome *
+              {/* Row 3 */}
+              <div className="form-group">
+                <label>Planned Prices</label>
                 <input
                   type="text"
+                  name="prices"
+                  value={draft.prices}
+                  onChange={handleFieldChange("prices")}
+                  placeholder="Stop / Target context"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Setup Name *</label>
+                <input
+                  type="text"
+                  name="setupName"
+                  value={draft.setupName}
+                  onChange={handleFieldChange("setupName")}
+                  required
+                  placeholder="e.g. Opening Range Breakout"
+                />
+              </div>
+
+              {/* Row 4 */}
+              <div className="form-group">
+                <label>Outcome *</label>
+                <select
                   name="outcome"
                   value={draft.outcome}
                   onChange={handleFieldChange("outcome")}
                   required
-                />
-              </label>
-              <label>
-                PnL ($)
+                >
+                  <option value="Win">Win</option>
+                  <option value="Loss">Loss</option>
+                  <option value="BreakEven">Break Even</option>
+                  <option value="Missed">Missed</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>PnL ($)</label>
                 <input
-                  type="text"
+                  type="text" // Keep as text to allow empty state if NaN
                   name="pnl"
                   value={draft.pnl}
-                  onChange={handleFieldChange("pnl")}
-                  placeholder="Auto-calc if symbol valid"
                   readOnly
-                  style={{ background: 'var(--bg-hover)' }}
+                  className={parseFloat(draft.pnl) > 0 ? "pnl-positive" : parseFloat(draft.pnl) < 0 ? "pnl-negative" : ""}
+                  placeholder="Auto-calc"
                 />
-              </label>
-              <label>
-                Confidence *
+              </div>
+
+              <div className="form-group">
+                <label>Confidence (1-5)</label>
                 <input
-                  type="text"
+                  type="number"
+                  min="1"
+                  max="5"
                   name="confidence"
                   value={draft.confidence}
                   onChange={handleFieldChange("confidence")}
                   required
                 />
-              </label>
-            </div>
+              </div>
 
-            <label>
-              Tags
-              <input
-                type="text"
-                name="tags"
-                value={draft.tags}
-                onChange={handleFieldChange("tags")}
-                placeholder="comma,separated,tags"
-              />
-            </label>
+              {/* Row 5 */}
+              <div className="form-group full-width">
+                <label>Tags</label>
+                <input
+                  type="text"
+                  name="tags"
+                  value={draft.tags}
+                  onChange={handleFieldChange("tags")}
+                  placeholder="comma, separated, tags"
+                />
+              </div>
+
+            </div>
           </section>
 
+          {/* --- Reflection Questions --- */}
           <section className="new-reflection__section">
-            <h3>Reflection questions</h3>
-            <div className="new-reflection__questions">
+            <h3 className="section-title">Analysis</h3>
+            <div className="questions-container">
               {dynamicQuestions.length > 0
                 ? dynamicQuestions.map((question) => (
-                    <label key={question.id}>
-                      {question.label}
+                    <div key={question.id} className="question-group">
+                      <label>{question.label}</label>
                       <textarea
                         name={question.id}
                         value={draft.questions[question.id] ?? ""}
@@ -574,12 +607,11 @@ export const NewReflection = () => {
                         placeholder={question.placeholder}
                         rows={3}
                       />
-                    </label>
+                    </div>
                   ))
-                : // Fallback if dynamic questions haven't loaded yet
-                  questionTemplate.map((question) => (
-                    <label key={question.id}>
-                      {question.label}
+                : questionTemplate.map((question) => (
+                    <div key={question.id} className="question-group">
+                      <label>{question.label}</label>
                       <textarea
                         name={question.id}
                         value={draft.questions[question.id] ?? ""}
@@ -587,51 +619,56 @@ export const NewReflection = () => {
                         placeholder={question.placeholder}
                         rows={3}
                       />
-                    </label>
+                    </div>
                   ))}
             </div>
           </section>
 
+          {/* --- Images --- */}
           <section className="new-reflection__section">
-            <h3>Images (up to 5)</h3>
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleImageUpload}
-              disabled={draft.images.length >= 5}
-            />
-            {draft.images.length > 0 ? (
+            <h3 className="section-title">Charts / Screenshots (Max 5)</h3>
+            <div className="image-upload-wrapper">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImageUpload}
+                disabled={draft.images.length >= 5}
+                className="file-input"
+              />
+              <div className="file-input-label">
+                {draft.images.length >= 5 ? "Limit Reached" : "+ Add Images"}
+              </div>
+            </div>
+            
+            {draft.images.length > 0 && (
               <div className="new-reflection__images">
                 {draft.images.map((image) => (
                   <figure key={image.name} className="new-reflection__image">
                     <img src={image.dataUrl} alt={image.name} />
-                    <figcaption>{image.name}</figcaption>
                     <button
                       type="button"
+                      className="remove-img-btn"
                       onClick={() => handleRemoveImage(image.name)}
                     >
-                      Remove
+                      ×
                     </button>
                   </figure>
                 ))}
               </div>
-            ) : (
-              <p className="new-reflection__hint">
-                Add screenshots or charts to support the reflection.
-              </p>
             )}
           </section>
 
+          {/* --- Footer --- */}
           <footer className="new-reflection__footer">
-            <button type="submit" disabled={isSaving}>
-              {isSaving ? "Saving..." : "Save reflection"}
+            <button className="btn-primary full-width" type="submit" disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save Reflection"}
             </button>
-            {statusMessage ? (
+            {statusMessage && (
               <span className="new-reflection__status">{statusMessage}</span>
-            ) : null}
+            )}
           </footer>
-        </>
+        </div>
       )}
     </form>
   );
