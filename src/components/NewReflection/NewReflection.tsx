@@ -1,4 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  ChecklistSnapshot,
+  ChecklistSnapshotItem
+} from "../ChecklistSnapshot/ChecklistSnapshot";
+import { getChecklistTemplate } from "../../storage/checklistStore";
+import {
+  ReflectionQuestion,
+  getReflectionQuestions
+} from "../../storage/reflectionQuestionsStore";
+import { createReflection } from "../../storage/reflectionStore";
+import "./NewReflection.css";
+
 import { ChecklistSnapshot, ChecklistSnapshotItem } from "../ChecklistSnapshot/ChecklistSnapshot";
 import { getChecklistTemplate } from "../../storage/checklistStore";
 import { createReflection } from "../../storage/reflectionStore";
@@ -24,6 +36,12 @@ type DraftState = {
   checklist: ChecklistSnapshotItem[];
 };
 
+const buildQuestionDefaults = (questions: ReflectionQuestion[]) => {
+  return questions.reduce<Record<string, string>>((acc, item) => {
+    acc[item.id] = "";
+    return acc;
+  }, {});
+};
 const questionTemplate: QuestionTemplate[] = [
   {
     id: "thesis",
@@ -51,6 +69,9 @@ const emptyDraft: DraftState = {
   outcome: "",
   confidence: "",
   tags: "",
+  questions: {},
+  images: [],
+  checklist: []
   questions: questionTemplate.reduce<Record<string, string>>((acc, item) => {
     acc[item.id] = "";
     return acc;
@@ -84,6 +105,9 @@ const buildBody = (draft: DraftState) => {
 
 export const NewReflection = () => {
   const [draft, setDraft] = useState<DraftState>(() => cachedDraft ?? emptyDraft);
+  const [questionTemplate, setQuestionTemplate] = useState<
+    ReflectionQuestion[]
+  >([]);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
@@ -126,6 +150,34 @@ export const NewReflection = () => {
     };
 
     loadChecklist();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadQuestions = async () => {
+      const template = await getReflectionQuestions();
+      if (!isMounted) {
+        return;
+      }
+      setQuestionTemplate(template);
+      setDraft((prev) => {
+        const defaults = buildQuestionDefaults(template);
+        return {
+          ...prev,
+          questions: {
+            ...defaults,
+            ...prev.questions
+          }
+        };
+      });
+    };
+
+    loadQuestions();
 
     return () => {
       isMounted = false;
