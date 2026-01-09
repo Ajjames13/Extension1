@@ -57,6 +57,7 @@ const emptyDraft: DraftState = {
   }, {}),
   images: [],
   checklist: []
+  images: []
 };
 
 let cachedDraft: DraftState | null = null;
@@ -74,6 +75,7 @@ const buildBody = (draft: DraftState) => {
       tags: draft.tags,
       questions: draft.questions,
       checklist: draft.checklist
+      questions: draft.questions
     },
     null,
     2
@@ -240,6 +242,7 @@ export const NewReflection = () => {
           checked: false
         }))
       }));
+      setDraft(emptyDraft);
       setStatusMessage("Reflection saved.");
     } catch (error) {
       setStatusMessage("Unable to save reflection.");
