@@ -25,15 +25,9 @@ export const SettingsPage = () => {
     let isMounted = true;
 
     const load = async () => {
-      try {
-        const template = await getReflectionQuestions();
-        if (isMounted) {
-          setQuestions(template);
-        }
-      } catch {
-        if (isMounted) {
-          setStatusMessage("Unable to load reflection questions.");
-        }
+      const template = await getReflectionQuestions();
+      if (isMounted) {
+        setQuestions(template);
       }
     };
 

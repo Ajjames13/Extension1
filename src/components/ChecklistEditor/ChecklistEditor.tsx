@@ -19,15 +19,9 @@ export const ChecklistEditor = () => {
     let isMounted = true;
 
     const load = async () => {
-      try {
-        const template = await getChecklistTemplate();
-        if (isMounted) {
-          setItems(template);
-        }
-      } catch {
-        if (isMounted) {
-          setStatusMessage("Unable to load checklist template.");
-        }
+      const template = await getChecklistTemplate();
+      if (isMounted) {
+        setItems(template);
       }
     };
 
