@@ -1,108 +1,91 @@
-/* Dark Finance Theme for Checklist Editor */
 .checklist-editor {
   display: grid;
   gap: 16px;
-  /* Remove white background/shadows */
-  background: transparent; 
-  padding: 0;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
 }
 
-/* Inherit header styles from SettingsPage container, so no header styles needed here */
+.checklist-editor header h3 {
+  margin: 0 0 4px;
+  color: var(--text-main);
+}
+
+.checklist-editor header p {
+  margin: 0;
+  color: var(--text-muted);
+}
 
 .checklist-editor__list {
   display: grid;
-  gap: 8px;
+  gap: 12px;
 }
 
 .checklist-editor__item {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   align-items: center;
-  background: var(--bg-app);
-  padding: 8px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
 }
 
 .checklist-editor__item input {
   flex: 1;
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  font-size: 13px;
-  padding: 4px;
-}
-.checklist-editor__item input:focus {
-  outline: none;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
   background: var(--bg-input);
+  color: var(--text-main);
 }
 
 .checklist-editor__actions {
   display: flex;
-  gap: 4px;
+  gap: 6px;
 }
 
 .checklist-editor__actions button {
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-input);
-  color: var(--text-secondary);
-  padding: 4px 8px;
-  border-radius: 2px;
+  border: none;
+  background: var(--bg-hover);
+  color: var(--text-main);
+  padding: 6px 8px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 10px;
-  text-transform: uppercase;
-}
-.checklist-editor__actions button:hover {
-  border-color: var(--accent-primary);
-  color: var(--text-primary);
 }
 
 .checklist-editor__new {
   display: flex;
   gap: 8px;
-  margin-top: 8px;
 }
 
 .checklist-editor__new input {
   flex: 1;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
   background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  padding: 10px;
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-size: 13px;
+  color: var(--text-main);
 }
 
 .checklist-editor__new button {
-  background: var(--accent-primary);
-  color: white;
   border: none;
-  padding: 0 16px;
-  border-radius: 4px;
-  font-weight: 700;
-  font-size: 12px;
+  background: var(--accent-primary);
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 10px;
   cursor: pointer;
 }
 
 .checklist-editor__footer {
-  margin-top: 12px;
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
 .checklist-editor__footer button {
-  background: var(--color-win);
-  color: white;
   border: none;
-  padding: 12px 24px;
-  border-radius: 4px;
-  font-weight: 700;
-  font-size: 12px;
+  background: var(--accent-primary);
+  color: #ffffff;
+  padding: 8px 14px;
+  border-radius: 10px;
   cursor: pointer;
-  letter-spacing: 0.05em;
-}
-.checklist-editor__footer button:disabled {
-  background: var(--bg-input);
-  color: var(--text-muted);
 }

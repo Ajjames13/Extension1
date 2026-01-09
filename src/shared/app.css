@@ -1,205 +1,123 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap');
-
 :root {
-  /* --- DARK FINANCE THEME --- */
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
   
-  /* Backgrounds */
-  --bg-app: #0f1115;       /* Deep Charcoal (Main Background) */
-  --bg-card: #181b21;      /* Lighter Charcoal (Containers) */
-  --bg-input: #232730;     /* Input Fields */
-  --bg-hover: #2d313a;     /* Hover States */
+  /* Dark Finance Palette */
+  --bg-body: #020617;      /* Deepest slate/black */
+  --bg-card: #0f172a;      /* Dark slate for cards */
+  --bg-input: #1e293b;     /* Slightly lighter for inputs */
+  --bg-hover: #334155;     /* Hover states */
   
-  /* Text */
-  --text-primary: #e0e0e0; /* High Contrast Text */
-  --text-secondary: #9ca3af; /* Muted Labels */
-  --text-muted: #4b5563;   /* Disabled/Subtle */
-
-  /* Accents */
-  --accent-primary: #3b82f6; /* Electric Blue */
-  --accent-glow: rgba(59, 130, 246, 0.5);
-  --border-subtle: #2d313a;  /* Thin Borders */
+  --text-main: #f1f5f9;    /* Bright white-ish text */
+  --text-muted: #94a3b8;   /* Muted gray text */
   
-  /* Semantic Colors */
-  --color-win: #10b981;    /* Emerald Green */
-  --color-loss: #ef4444;   /* Crimson Red */
-  --color-warn: #f59e0b;   /* Amber */
-
-  /* Fonts */
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --font-mono: "Roboto Mono", monospace;
+  --border-color: #1e293b; /* Subtle borders */
+  --border-active: #475569;
+  
+  --accent-primary: #3b82f6; /* Blue */
+  --accent-danger: #ef4444;  /* Red */
+  --accent-success: #10b981; /* Green */
+  
+  color: var(--text-main);
+  background-color: var(--bg-body);
 }
 
-/* --- CRITICAL LAYOUT FIXES --- */
-
-/* 1. Base Reset */
-html {
-  box-sizing: border-box;
-}
-*, *:before, *:after {
-  box-sizing: inherit;
-}
-
-/* 2. Default Body Styles */
 body {
   margin: 0;
-  padding: 0;
-  background-color: var(--bg-app);
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
+  /* CRITICAL FIX: Extension popups need explicit minimum dimensions */
+  min-width: 600px;
+  min-height: 600px;
+  background-color: var(--bg-body);
 }
 
-/* 3. POPUP SPECIFIC: Strict Fixed Dimensions */
-/* This ensures the extension popup never collapses */
-body.popup-mode {
-  width: 500px !important;
-  height: 600px !important;
-  overflow: hidden; /* Prevent outer scrollbars */
-}
-
-/* 4. DASHBOARD SPECIFIC: Full Screen */
-body.dashboard-mode {
-  width: 100%;
-  min-height: 100vh;
-  overflow-y: auto;
-}
-
-/* 5. React Root Container */
 #root {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+  min-height: 100vh;
 }
-
-/* --- Scrollbar Styling --- */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg-app);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border-subtle);
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
-}
-
-/* --- App Component Layouts --- */
 
 .app {
   display: flex;
   flex-direction: column;
   gap: 24px;
   padding: 24px;
-  width: 100%;
-  /* Ensure padding doesn't add to width */
-  box-sizing: border-box; 
-}
-
-/* Popup specific: Allow scrolling inside the content area */
-.app--popup {
-  height: 100%;
-  overflow-y: auto; 
-}
-
-/* Dashboard specific: Center content with a max width */
-.app--dashboard {
-  max-width: 1200px;
+  /* Max width controls dashboard view, min-width on body handles popup */
+  max-width: 900px;
   margin: 0 auto;
 }
-
-/* --- Header Styles --- */
 
 .app__header-top {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: 16px;
-  margin-bottom: 8px;
 }
 
 .app__header h1 {
   margin: 8px 0;
   font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
+  color: var(--text-main);
 }
 
 .app__eyebrow {
   margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--accent-primary);
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .app__description {
   margin: 0;
-  color: var(--text-secondary);
-  font-size: 14px;
-  max-width: 600px;
+  color: var(--text-muted);
 }
 
 .app__content {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .app__link {
   color: var(--accent-primary);
   font-weight: 600;
   text-decoration: none;
-  font-size: 13px;
-  font-family: var(--font-mono);
+  font-size: 14px;
 }
 
 .app__link:hover {
   text-decoration: underline;
-  text-shadow: 0 0 8px var(--accent-glow);
 }
 
-/* --- Dashboard Tabs --- */
-
+/* Dashboard Tabs */
 .app__dashboard-layout {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
 .app__tabs {
   display: flex;
-  gap: 2px; /* Tighter gap for segmented look */
-  border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: 0;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 1px;
 }
 
 .app__tabs button {
   border: none;
   background: transparent;
-  padding: 12px 20px;
-  border-bottom: 2px solid transparent;
+  padding: 8px 16px;
+  border-radius: 8px 8px 0 0;
   font-weight: 600;
-  font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.2s ease;
-  letter-spacing: 0.02em;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
 }
 
 .app__tabs button:hover {
-  color: var(--text-primary);
+  color: var(--text-main);
   background: var(--bg-hover);
 }
 
 .app__tabs button.active {
   color: var(--accent-primary);
   border-bottom-color: var(--accent-primary);
-  background: rgba(59, 130, 246, 0.05); /* Subtle glow */
+  background: var(--bg-input);
 }

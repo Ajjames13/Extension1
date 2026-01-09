@@ -1,57 +1,45 @@
-.export-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.export-header {
-  padding: 16px 20px;
-  background: var(--bg-input);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.export-header h3 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: 0.05em;
-}
-
-.export-header p {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.export-actions {
+.export-data {
+  display: grid;
+  gap: 12px;
   padding: 20px;
+  border-radius: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  color: var(--text-main);
+}
+
+.export-data header h3 {
+  margin: 0 0 4px;
+  color: var(--text-main);
+}
+
+.export-data header p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.export-data__actions {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
-.export-btn {
-  background: var(--bg-hover);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-primary);
-  padding: 12px 20px;
-  font-weight: 600;
-  font-size: 12px;
-  border-radius: 4px;
+.export-data__actions button {
+  border: none;
+  background: var(--accent-primary);
+  color: #ffffff;
+  padding: 8px 14px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s;
-  flex: 1;
 }
 
-.export-btn:hover {
-  background: var(--bg-input);
-  border-color: var(--accent-primary);
-  color: var(--accent-primary);
+.export-data__actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-.export-status {
-  padding: 0 20px 20px;
-  font-size: 12px;
-  color: var(--color-win);
+.export-data__status {
+  margin: 0;
+  color: var(--text-muted);
 }
